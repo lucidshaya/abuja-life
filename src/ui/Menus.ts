@@ -104,6 +104,10 @@ export class Menus {
     else show(this.pause, true);
   }
 
+  openSettingsFrom(from: 'menu' | 'pause'): void {
+    this.openSettings(from);
+  }
+
   private openSettings(from: 'menu' | 'pause'): void {
     this.back = from;
     this.hideAll();

@@ -1,5 +1,6 @@
 import type { Bindings } from './Input';
 import { defaultCharacter, type CharacterConfig } from '../player/CharacterConfig';
+import { newPhoneState, parsePhone, type PhoneState } from '../phone/PhoneData';
 
 export type QualitySetting = 'auto' | 'low' | 'medium' | 'high';
 
@@ -28,6 +29,7 @@ export interface SaveData {
   day: number;
   flags: string[];
   settings: Settings;
+  phone: PhoneState;
 }
 
 export const SAVE_KEY = 'abuja-life-save-v1';
@@ -46,6 +48,7 @@ export function newSave(character: CharacterConfig = defaultCharacter()): SaveDa
     day: 1,
     flags: [],
     settings: defaultSettings(),
+    phone: newPhoneState(),
   };
 }
 
@@ -85,6 +88,7 @@ export function parseSave(raw: string | null): SaveData | null {
     hour: num(o.hour, base.hour) % 24,
     day: Math.max(1, Math.floor(num(o.day, 1))),
     flags: Array.isArray(o.flags) ? o.flags.filter((f) => typeof f === 'string') : [],
+    phone: parsePhone(o.phone),
     settings: {
       quality: (['auto', 'low', 'medium', 'high'] as const).includes(s.quality) ? s.quality : 'auto',
       sensitivity: Math.min(3, Math.max(0.2, num(s.sensitivity, 1))),

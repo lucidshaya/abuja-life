@@ -60,7 +60,7 @@ export class TouchControls {
       mk('car', 'Car', 'vehicle', false),
       (this.hornBtn = mk('horn', 'Horn', 'horn', false)),
     );
-    const top = h('div.ttop', {}, mk('map', 'Map', 'map', false), mk('pause', 'II', 'pause', false));
+    const top = h('div.ttop', {}, mk('phone', 'Phone', 'phone', false), mk('map', 'Map', 'map', false), mk('pause', 'II', 'pause', false));
     this.root.append(this.lookZone, this.stickZone, cluster, top);
 
     this.stickZone.addEventListener('pointerdown', (e) => {
@@ -124,6 +124,11 @@ export class TouchControls {
     const endLook = (e: PointerEvent) => this.lookIds.delete(e.pointerId);
     this.lookZone.addEventListener('pointerup', endLook);
     this.lookZone.addEventListener('pointercancel', endLook);
+  }
+
+  setPhoneBadge(n: number): void {
+    const b = this.btns.phone;
+    if (b) b.dataset.badge = n ? String(n) : '';
   }
 
   setVisible(on: boolean): void {

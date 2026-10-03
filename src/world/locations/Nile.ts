@@ -215,6 +215,8 @@ export function buildNile(world: CollisionWorld): LocationBuild {
   k.wall(L.x0 - 1, L.z1, 1618, L.z1 + 1, 7, 0xe8e0d0, 1);
   k.wall(1622, L.z1, L.x1 + 1, L.z1 + 1, 7, 0xe8e0d0, 1);
   k.box(1620, 3, L.z1 + 0.5, 4, 4, 1, 0xe8e0d0);
+  world.addBox(1618, L.z1, 1622, L.z1 + 0.4, 4);
+  k.box(1620, 0, L.z1 + 0.25, 3.8, 3, 0.1, 0x5a3a24);
   const ltCeil = new THREE.Mesh(new THREE.PlaneGeometry(42, 34).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xf2efe8 }));
   ltCeil.position.set(1620, 7, -4);
   g.add(ltCeil);

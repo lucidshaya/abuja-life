@@ -39,6 +39,8 @@ export function buildCage(world: CollisionWorld): LocationBuild {
   k.wall(X0 - 1, Z1, 1421, Z1 + 1, H, 0x221a2e, 1);
   k.wall(1425, Z1, X1 + 1, Z1 + 1, H, 0x221a2e, 1);
   k.box(1423, 3, Z1 + 0.5, 4, 4, 1, 0x221a2e);
+  world.addBox(1421, Z1, 1425, Z1 + 0.4, 4);
+  glow(g, 1423, 0, Z1 + 0.25, 3.8, 3, 0.06, 0x3a1a4a, 1);
   const ceil = new THREE.Mesh(new THREE.PlaneGeometry(48, 38).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x0c0a10 }));
   ceil.position.set(1423, H, 198);
   g.add(ceil);

@@ -384,17 +384,7 @@ export function buildLandmarks(world: CollisionWorld): LandmarkData {
     }
     // Jetty near Baba Boat.
     add(new THREE.BoxGeometry(3, 0.3, 12).translate(0, 0.4, 0), lambert(0x7a5534), l.x, 0, l.z - l.rz + 4);
-    // Lakeside mall (fictional).
-    const mall = LANDMARKS.jabiMall;
-    add(new THREE.BoxGeometry(56, 14, 34).translate(0, 7, 0), new THREE.MeshLambertMaterial({ color: 0xe6e1d6 }), mall.x, 0, mall.z);
-    add(new THREE.BoxGeometry(56.2, 6, 0.3).translate(0, 8, 0), new THREE.MeshPhongMaterial({ color: 0x3f6f8f, shininess: 90 }), mall.x, 0, mall.z + 17);
-    sign('JABI LAKE MALL', mall.x, 12.4, mall.z + 17.2, 0, 22, 2.6, { bg: '#ffffff', fg: '#0f4f2a', sub: 'ShopRight • Cinema • Food Court' });
-    // Entrance canopy and glass doors (press E there to go inside).
-    add(new THREE.BoxGeometry(14, 0.4, 5).translate(0, 4.6, 0), lambert(0x0f4f2a), mall.x, 0, mall.z + 19.5);
-    for (const s2 of [-6.5, 6.5]) add(new THREE.CylinderGeometry(0.2, 0.2, 4.6).translate(0, 2.3, 0), lambert(0xdddddd), mall.x + s2, 0, mall.z + 21.5);
-    add(new THREE.BoxGeometry(6, 3.4, 0.2).translate(0, 1.7, 0), new THREE.MeshBasicMaterial({ color: 0xbfe6ff, toneMapped: false }), mall.x, 0, mall.z + 17.15, false);
-    sign('ShopRight', mall.x + 18, 9.4, mall.z + 17.25, 0, 7, 1.6, { bg: '#c0262d' });
-    world.addBox(mall.x - 28, mall.z - 17, mall.x + 28, mall.z + 17, 14);
+    // The mall itself (exterior + car park + boardwalk) is built in locations/Mall.ts.
     // Park: benches and trees around the lake.
     const trunkMat = lambert(0x5a3e2b);
     const leaf = new THREE.MeshLambertMaterial({ color: 0x3f8a33, flatShading: true });
@@ -407,7 +397,7 @@ export function buildLandmarks(world: CollisionWorld): LandmarkData {
       const rad = range(rng, 1.18, 1.5);
       const x = l.x + Math.cos(ang) * l.rx * rad;
       const z = l.z + Math.sin(ang) * l.rz * rad;
-      if (Math.abs(x - mall.x) < 32 && Math.abs(z - mall.z) < 21) continue;
+      if (x > -248 && x < -128 && z > -118 && z < -50) continue; // mall, car park, boardwalk
       if (x < -360 || x > -140 || z < -110 || z > 110) continue;
       trees.push(new THREE.Matrix4().makeTranslation(x, 0, z));
       leaves.push(new THREE.Matrix4().compose(new THREE.Vector3(x, 4, z), new THREE.Quaternion(), new THREE.Vector3(1, 0.85, 1).multiplyScalar(range(rng, 0.8, 1.3))));

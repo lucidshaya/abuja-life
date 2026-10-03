@@ -158,6 +158,7 @@ export const RESERVED: Rect[] = [
 /** Areas kept free of scattered trees because a location is built there. */
 export const NO_TREES: Rect[] = [
   { x0: -622, z0: -117, x1: -383, z1: 247 }, // Nile University
+  { x0: -248, z0: -118, x1: -128, z1: -50 }, // Jabi Lake Mall + car park
   { x0: 381, z0: 131, x1: 558, z1: 382 }, // Guzape
   { x0: 133, z0: -367, x1: 367, z1: -133 }, // Millennium Park interior
 ];
@@ -170,7 +171,7 @@ export const LANDMARKS = {
   church: { x: 310, z: -60 },
   eagleSquare: { x: 190, z: 60 },
   lake: { x: -255, z: 15, rx: 78, rz: 62 },
-  jabiMall: { x: -195, z: -88 },
+  jabiMall: { x: -200, z: -93 },
   market: { x: -188, z: 190 },
   area1: { x: 0, z: 250, r: 18 },
   owambe: { x: -315, z: -315 },
@@ -234,7 +235,7 @@ export const CAR_SPOTS: CarSpot[] = [
   { x: 145, z: 140, heading: 0, color: 0xe9e9e9, model: 'benz' }, // Garki
   { x: -410, z: 82, heading: Math.PI / 2, color: 0x1f3f7a, model: 'suv' }, // Nile University
   { x: 262, z: -112, heading: Math.PI / 2, color: 0xe8a317, model: 'corolla' }, // Millennium Park
-  { x: -175, z: -62, heading: Math.PI / 2, color: 0x5b5f66, model: 'benz' }, // Jabi Lake Mall
+  { x: -143.5, z: -58, heading: Math.PI, color: 0x5b5f66, model: 'benz' }, // Jabi Lake Mall car park
   { x: 410, z: 258, heading: Math.PI / 2, color: 0xffffff, model: 'suv' }, // Guzape
 ];
 

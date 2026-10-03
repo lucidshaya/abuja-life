@@ -25,7 +25,9 @@ import { buildMall } from '../world/locations/Mall';
 import { buildNile } from '../world/locations/Nile';
 import { buildPark } from '../world/locations/Park';
 import { buildCage, buildGuzape } from '../world/locations/Small';
-import { TravelMenu, type TravelChoice } from '../ui/TravelMenu';
+import { TravelMenu, type TravelChoice, type TravelMode } from '../ui/TravelMenu';
+import { Phone } from '../ui/Phone';
+import { BILLS, FLAG_TEXTS, TAXI_FARE, groupText, morningText, transferOp, uid, type Contact } from '../phone/PhoneData';
 import { clearTrack, loadTrack, saveTrack } from './TrackStore';
 import { CAR_MODELS } from '../player/Vehicle';
 import { Customizer } from '../ui/Customizer';
@@ -36,7 +38,7 @@ import { FullMap, MapImage, Minimap, npcMarkers, type MapMarker } from '../ui/Mi
 import { TouchControls } from '../ui/TouchControls';
 import { $, h, naira, show } from '../ui/dom';
 
-type State = 'loading' | 'menu' | 'customize' | 'play' | 'paused' | 'dialogue' | 'map' | 'travel';
+type State = 'loading' | 'menu' | 'customize' | 'play' | 'paused' | 'dialogue' | 'map' | 'travel' | 'phone';
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -95,6 +97,10 @@ export class Game {
   private indoor: Interior | null = null;
   private fading = false;
   private muteBtn!: HTMLButtonElement;
+  private phone!: Phone;
+  private phoneBtn!: HTMLButtonElement;
+  private travelT = 0;
+  private aerial = false;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.touch = isTouchDevice();
@@ -180,6 +186,8 @@ export class Game {
   }
 
   private setupUi(buildings: { x0: number; z0: number; x1: number; z1: number }[]): void {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const game = this;
     this.hud = new Hud();
     this.hud.bindings = this.input.bindings;
     this.hud.device = this.input.device;
@@ -233,6 +241,56 @@ export class Game {
     this.menus.setSettings(this.save.settings);
     this.travel = new TravelMenu();
     this.travel.onClick = () => this.audio.click();
+    this.phone = new Phone({
+      get state() { return game.save.phone; },
+      money: () => this.save.stats.money,
+      hour: () => this.hour,
+      day: () => this.day,
+      flags: () => this.flags,
+      playerName: () => this.save.character.name,
+      trackName: () => this.audio.music.userTrackName ?? (this.audio.music.hasThemeFile ? 'How Far (feat. Ayjay Bobo)' : 'Abuja Life Beats'),
+      muted: () => this.save.settings.muted,
+      musicVolume: () => this.save.settings.musicVolume,
+      quality: () => this.save.settings.quality,
+      transfer: (c, amount) => this.bankOp(transferOp(c, amount)),
+      payBill: (id) => {
+        const bill = BILLS.find((x) => x.id === id);
+        if (!bill) return 'Unknown bill';
+        return this.bankOp({ label: bill.label, amount: -bill.amount, clout: bill.clout, reply: bill.reply, endsBlackout: bill.endsBlackout });
+      },
+      call: (c) => this.phoneCall(c),
+      toggleMute: () => this.toggleMute(),
+      setMusicVolume: (v) => {
+        this.save.settings.musicVolume = v;
+        this.audio.setMusicVolume(v);
+      },
+      setQuality: (q) => {
+        this.save.settings.quality = q;
+        this.applySettings(this.save.settings);
+        this.persist();
+      },
+      openMap: () => this.openMap(),
+      openTravel: () => this.openTravel('pause'),
+      openSettings: () => {
+        this.state = 'paused';
+        this.menus.openSettingsFrom('pause');
+      },
+      save: () => this.persist(),
+      click: () => this.audio.click(),
+    });
+    this.phone.onClose = () => {
+      if (this.state !== 'phone') return;
+      this.state = 'play';
+      this.hud.setVisible(true);
+      this.refreshTouch();
+      this.lockPointer();
+    };
+    this.phoneBtn = $('phonebtn') as HTMLButtonElement;
+    this.phoneBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.state === 'play') this.openPhone();
+    });
+    this.phoneBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.muteBtn = $('mute') as HTMLButtonElement;
     this.muteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -301,28 +359,179 @@ export class Game {
       this.resetCars();
       this.player.teleport(SPAWN.x, SPAWN.z, SPAWN.heading);
       this.rig.snapBehind(SPAWN.heading);
+      this.addTx('Opening balance', this.save.stats.money);
+      this.addMsg('OkPay', `Welcome to OkPay, ${cfg.name}! Your wallet is ready with ${naira(this.save.stats.money)}. Spend wisely for Abuja 😉`, false);
+      this.addMsg('Mummy ❤️', 'My child, you don reach Abuja? Call me when you settle. Love you!', false);
       this.persist();
       this.openTravel('start');
     });
   }
 
+  // ---------------------------------------------------------------- phone
+  private openPhone(screen?: 'home' | 'bank' | 'messages'): void {
+    this.state = 'phone';
+    this.unlockPointer();
+    this.hud.setPrompt(null, '');
+    this.touchUi.setVisible(false);
+    this.player.vx = this.player.vz = 0;
+    this.phone.show(screen ?? 'home');
+    this.audio.click();
+  }
+
+  addMsg(from: string, text: string, notify = true): void {
+    this.save.phone.messages.push({ id: uid('m'), from, text, day: this.day, hour: this.hour, read: false });
+    if (this.save.phone.messages.length > 150) this.save.phone.messages.splice(0, this.save.phone.messages.length - 150);
+    if (notify && (this.state === 'play' || this.state === 'phone')) {
+      this.hud.notify(`📩 ${from}: ${text.length > 46 ? text.slice(0, 44) + '…' : text}`, 'info');
+      this.audio.chime();
+    }
+    this.syncPhoneBadge();
+    this.phone?.refresh();
+  }
+
+  addTx(label: string, amount: number): void {
+    if (!amount) return;
+    this.save.phone.txs.push({ id: uid('t'), label, amount, day: this.day, hour: this.hour });
+    if (this.save.phone.txs.length > 150) this.save.phone.txs.splice(0, this.save.phone.txs.length - 150);
+  }
+
+  private setFlag(f: string): void {
+    if (this.flags.has(f)) return;
+    this.flags.add(f);
+    const t = FLAG_TEXTS[f];
+    if (t) window.setTimeout(() => this.addMsg(t.from, t.text), 2500);
+  }
+
+  private syncPhoneBadge(): void {
+    if (!this.phoneBtn) return;
+    const n = this.save.phone.messages.filter((m) => !m.read).length;
+    this.phoneBtn.dataset.badge = n ? String(n) : '';
+    this.touchUi?.setPhoneBadge(n);
+  }
+
+  /** Money movement from the phone (transfers, airtime, bills). Returns an error message or null. */
+  private bankOp(op: { label: string; amount: number; clout: number; reply?: { from: string; text: string }; endsBlackout?: boolean }): string | null {
+    if (this.save.stats.money + op.amount < 0) return 'Insufficient balance. Abeg fund your wallet.';
+    this.save.stats = applyEffects(this.save.stats, { money: op.amount, clout: op.clout });
+    this.addTx(op.label, op.amount);
+    if (op.endsBlackout) this.blackout = 0;
+    if (op.amount < 0) this.audio.click();
+    const reply = op.reply;
+    if (reply) window.setTimeout(() => this.addMsg(reply.from, reply.text), 1800);
+    this.persist();
+    return null;
+  }
+
+  private phoneCall(c: Contact): void {
+    if (c.action === 'taxi') {
+      if (this.indoor) {
+        this.hud.notify('Danladi: "Abeg come outside first, I dey for road."', 'bad');
+        this.state = 'play';
+        this.refreshTouch();
+        return;
+      }
+      if (this.save.stats.money < TAXI_FARE) {
+        this.hud.notify('You no get ₦2,500 for transport. Waka go!', 'bad');
+        this.state = 'play';
+        this.refreshTouch();
+        return;
+      }
+      this.openTravel('taxi');
+    }
+  }
+
+  /** Per-frame: morning texts from Mummy, group chat banter. */
+  private phoneTick(): void {
+    const ph = this.save.phone;
+    if (this.day > ph.lastMorningDay && this.hour >= 7.5 && this.hour < 12) {
+      ph.lastMorningDay = this.day;
+      const t = morningText(this.day);
+      this.addMsg(t.from, t.text);
+    }
+    const abs = this.day * 24 + this.hour;
+    if (ph.lastGroupHour === 0) ph.lastGroupHour = abs;
+    if (abs - ph.lastGroupHour >= 5) {
+      ph.lastGroupHour = abs;
+      const t = groupText(Math.floor(abs));
+      this.addMsg(t.from, t.text);
+    }
+  }
+
   /** The location picker shown after New Life / Continue, from pause and from the map. */
-  private openTravel(mode: 'start' | 'continue' | 'pause'): void {
+  private openTravel(mode: TravelMode): void {
     const prev = this.state;
     this.state = 'travel';
     this.unlockPointer();
     this.menus.hideAll();
+    show($('map'), false);
     this.hud.setVisible(false);
     this.refreshTouch();
-    this.travel.show(mode, (c) => this.travelTo(c, mode), mode === 'pause' ? () => {
-      this.state = prev === 'map' ? 'play' : 'paused';
-      if (this.state === 'paused') this.menus.showPause();
-      else this.startPlay();
-    } : undefined);
+    this.setAerial(true);
+    const p = this.playerPos();
+    const back = mode === 'pause' || mode === 'taxi' ? () => {
+      this.setAerial(false);
+      if (prev === 'paused') {
+        this.state = 'paused';
+        this.menus.showPause();
+      } else this.startPlay();
+    } : undefined;
+    this.travel.show(mode, (c) => this.travelTo(c, mode), back, mode === 'continue' ? { x: p.x, z: p.z } : undefined);
   }
 
-  private travelTo(c: TravelChoice, mode: 'start' | 'continue' | 'pause'): void {
+  /** Bird's-eye view: lift the fog so the whole city is visible from above. */
+  private setAerial(on: boolean): void {
+    if (on === this.aerial) return;
+    this.aerial = on;
+    const fog = this.scene.fog as THREE.Fog;
+    if (on) {
+      fog.near = 2500;
+      fog.far = 6000;
+      this.camera.far = 6000;
+      this.camera.updateProjectionMatrix();
+      this.travelT = 0;
+    } else this.applyTier(this.tier);
+  }
+
+  private updateTravelCamera(dt: number): void {
+    this.travelT += dt;
+    // Frame the whole map (x -920..560, z -420..420) for the current aspect ratio.
+    const cx = -180 + Math.sin(this.travelT * 0.06) * 25;
+    const cz = 10;
+    const aspect = this.camera.aspect;
+    const vf = (this.camera.fov * Math.PI) / 360;
+    const hf = Math.atan(Math.tan(vf) * aspect);
+    const pitch = 1.02;
+    const dW = 780 / Math.tan(hf);
+    const dH = 560 / Math.tan(vf);
+    const d = Math.max(dW, dH) * 0.92;
+    this.camera.position.set(cx, Math.sin(pitch) * d, cz + Math.cos(pitch) * d);
+    this.camera.lookAt(cx, 0, cz - 40);
+    this.focus.set(cx, 0, cz);
+    this.dayNight.update(16.6, this.focus, this.camera);
+    updateGlowMaterials(this.glowMats, this.dayNight.night, 0);
+    this.traffic.update(dt, []);
+    for (const a of this.animators) a(this.time, dt);
+    const v = new THREE.Vector3();
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    this.travel.update((x, y, z) => {
+      v.set(x, y, z).project(this.camera);
+      return { sx: (v.x * 0.5 + 0.5) * W, sy: (-v.y * 0.5 + 0.5) * H, visible: v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05 };
+    });
+  }
+
+  private travelTo(c: TravelChoice, mode: TravelMode): void {
     const name = this.save.character.name;
+    this.setAerial(false);
+    if (mode === 'taxi') {
+      if (c === 'stay' || c === 'gate') return this.startPlay();
+      const err = this.bankOp({ label: 'One-Way taxi (Danladi)', amount: -TAXI_FARE, clout: 0 });
+      if (err) {
+        this.startPlay();
+        this.hud.notify(err, 'bad');
+        return;
+      }
+    }
     if (c === 'stay') {
       this.startPlay();
       this.hud.showToast(`WELCOME BACK, ${name.toUpperCase()}`, 'Abuja missed you small.');
@@ -334,7 +543,8 @@ export class Game {
       this.startPlay();
       if (c === 'gate') this.hud.showToast('WELCOME TO ABUJA', `Oya ${name}, talk to Uncle Emeka (!) beside you`);
       else this.hud.showToast((c as TravelSpot).name.toUpperCase(), (c as TravelSpot).desc);
-      if (mode === 'start' && c !== 'gate') this.hud.notify('Tip: open the map (M) and choose Fast travel to hop between places.', 'info');
+      if (mode === 'taxi') this.hud.notify('Danladi: "We don reach! Abeg rate me 5 stars."', 'good');
+      if (mode === 'start' && c !== 'gate') this.hud.notify('Tip: open your phone (Q) or the map (M) to travel again.', 'info');
       this.persist();
     });
   }
@@ -386,11 +596,13 @@ export class Game {
     this.player.teleport(q.x, q.z, p.heading);
     this.rig.snapBehind(p.heading);
     this.menus.hideAll();
+    this.syncPhoneBadge();
     this.openTravel('continue');
   }
 
   private startPlay(): void {
     this.state = 'play';
+    this.syncPhoneBadge();
     this.hud.setVisible(true);
     this.hud.resetDeltas();
     this.district = null;
@@ -497,6 +709,7 @@ export class Game {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.time += dt;
     this.input.update();
+    document.body.classList.toggle('playing', this.state === 'play' || this.state === 'dialogue');
     if (this.input.wasPressed('mute')) this.toggleMute();
     switch (this.state) {
       case 'play':
@@ -519,7 +732,10 @@ export class Game {
       case 'customize':
         break;
       case 'travel':
-        this.updateMenuCamera(dt);
+        this.updateTravelCamera(dt);
+        break;
+      case 'phone':
+        this.updatePhone(dt);
         break;
     }
     if (this.state === 'customize') {
@@ -529,6 +745,21 @@ export class Game {
       this.renderer.render(this.scene, this.camera);
     }
     this.input.endFrame();
+  }
+
+  private updatePhone(dt: number): void {
+    const inp = this.input;
+    if (inp.wasPressed('phone')) this.phone.close();
+    else if (inp.wasPressed('pause')) this.phone.back();
+    this.updateWorld(dt, true);
+    this.phoneTick();
+    const p = this.playerPos();
+    this.rig.update(dt, { x: 0, y: 0 }, new THREE.Vector3(p.x, this.car ? 1.7 : 1.5, p.z), this.world, { distance: this.car ? 8.5 : this.indoor ? 3.6 : 5.2 });
+    this.minimapTimer -= dt;
+    if (this.minimapTimer <= 0) {
+      this.minimapTimer = 1;
+      this.phone.refresh();
+    }
   }
 
   private updateMenuCamera(dt: number): void {
@@ -666,6 +897,11 @@ export class Game {
       this.openMap();
       return;
     }
+    if (inp.wasPressed('phone')) {
+      this.openPhone();
+      return;
+    }
+    this.phoneTick();
     this.playTime += dt;
     this.updateWorld(dt, true);
     const look = inp.look(dt);
@@ -707,6 +943,14 @@ export class Game {
       const npc = this.nearestNpc(this.player.x, this.player.z, 3.2);
       const car = this.indoor ? null : this.nearestCar(this.player.x, this.player.z, 3.8);
       const portal = this.nearestPortal(this.player.x, this.player.z, 2.6);
+      // Walking into an exit door takes you outside (no more stepping into the void).
+      if (portal && portal.id.endsWith('-out') && !this.fading && Math.hypot(portal.x - this.player.x, portal.z - this.player.z) < 2.4 && this.player.speed > 0.5) {
+        const toDoor = (portal.x - this.player.x) * this.player.vx + (portal.z - this.player.z) * this.player.vz;
+        if (toDoor > 0) {
+          this.usePortal(portal);
+          return;
+        }
+      }
       if (portal && (!npc || Math.hypot(portal.x - this.player.x, portal.z - this.player.z) < Math.hypot(npc.x - this.player.x, npc.z - this.player.z))) {
         prompt = { action: 'interact', text: portal.label, touch: 'Enter' };
         if (inp.wasPressed('interact')) {
@@ -894,6 +1138,7 @@ export class Game {
 
   private startEvent(ev: GameEvent, spot: NpcSpot | null): void {
     this.events.markFired(ev.id, this.playTime);
+    if (spot) this.setFlag('met:' + spot.id);
     this.beginDialogue(spot);
     const ctx = this.eventCtx();
     this.dialogue.start({
@@ -904,13 +1149,13 @@ export class Game {
       onChoice: (i) => {
         const out = this.events.resolve(ev, i, this.eventCtx());
         if (!out) return { text: '…', tags: [] };
-        return { text: out.text, tags: this.applyOutcome(out) };
+        return { text: out.text, tags: this.applyOutcome(out, ev.title) };
       },
       onClose: () => this.endDialogue(),
     });
   }
 
-  private applyOutcome(o: Outcome): { text: string; kind: 'good' | 'bad' | 'info' }[] {
+  private applyOutcome(o: Outcome, label = 'Payment'): { text: string; kind: 'good' | 'bad' | 'info' }[] {
     const fx = o.effects ?? {};
     const before = this.save.stats;
     const after = applyEffects(before, fx);
@@ -922,7 +1167,9 @@ export class Game {
     this.save.stats = after;
     if (dm > 0 || dc > 0) this.audio.coin();
     else if (dm < 0 || dc < 0) this.audio.lose();
-    if (fx.flag) this.flags.add(fx.flag);
+    if (fx.flag) this.setFlag(fx.flag);
+    if (dm) this.addTx(label, dm);
+    if (dm >= 20000) window.setTimeout(() => this.addMsg('OkPay', `Credit alert! +${naira(dm)} • ${label}. Balance: ${naira(this.save.stats.money)}`), 1200);
     if (fx.timeSkip) {
       this.hour += fx.timeSkip;
       while (this.hour >= 24) {

@@ -38,8 +38,8 @@ export interface Portal {
 
 export const PORTALS: Portal[] = [
   // Jabi Lake Mall
-  { id: 'mall-in', label: 'Enter Jabi Lake Mall', x: -195, z: -68.5, to: { x: 1470, z: 33, heading: Math.PI } },
-  { id: 'mall-out', label: 'Exit to Jabi Lake', x: 1470, z: 37.5, to: { x: -195, z: -63, heading: 0 } },
+  { id: 'mall-in', label: 'Enter Jabi Lake Mall', x: -152, z: -93, to: { x: 1470, z: 33, heading: Math.PI } },
+  { id: 'mall-out', label: 'Exit to the car park', x: 1470, z: 37.5, to: { x: -148.5, z: -93, heading: Math.PI / 2 } },
   // The Cage
   { id: 'cage-in', label: 'Enter The Cage', x: 85, z: -70.5, to: { x: 1423, z: 210, heading: Math.PI }, gate: 'cage' },
   { id: 'cage-out', label: 'Exit to Wuse 2', x: 1423, z: 214.5, to: { x: 85, z: -65, heading: 0 } },
@@ -58,13 +58,15 @@ export interface TravelSpot {
   x: number;
   z: number;
   heading: number;
+  /** Where the pin sits on the bird's-eye map (for interiors: the building outside). */
+  pin?: { x: number; z: number };
 }
 
 export const TRAVEL: TravelSpot[] = [
   {
     id: 'mall', name: 'Jabi Lake Mall', area: 'Jabi', featured: true, color: '#2a64c9',
     desc: 'Full mall: ShopRight supermarket, food court, cinema, phone shop, and the fountain atrium.',
-    x: 1470, z: 30, heading: Math.PI,
+    x: 1470, z: 30, heading: Math.PI, pin: { x: -185, z: -93 },
   },
   {
     id: 'nile', name: 'Nile University', area: 'Jabi Airport Road', featured: true, color: '#7a1f3d',
@@ -79,7 +81,7 @@ export const TRAVEL: TravelSpot[] = [
   {
     id: 'cage', name: 'The Cage', area: 'Wuse 2', featured: false, color: '#6c2c91',
     desc: 'Nightclub. Amapiano, bottle service and dance-offs. Opens 9pm.',
-    x: 85, z: -64, heading: Math.PI,
+    x: 85, z: -64, heading: Math.PI, pin: { x: 85, z: -85 },
   },
   {
     id: 'wuse', name: 'Wuse 2', area: 'Your flat & suya', featured: false, color: '#e0915a',

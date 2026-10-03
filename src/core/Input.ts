@@ -6,14 +6,14 @@
 export type Action =
   | 'forward' | 'back' | 'left' | 'right'
   | 'sprint' | 'jump' | 'interact' | 'vehicle'
-  | 'map' | 'pause' | 'horn' | 'camera' | 'mute'
+  | 'map' | 'pause' | 'horn' | 'camera' | 'mute' | 'phone'
   | 'choice1' | 'choice2' | 'choice3';
 
 export type Device = 'keyboard' | 'touch' | 'gamepad';
 
 export type Bindings = Record<Action, string[]>;
 
-export const REBINDABLE: Action[] = ['forward', 'back', 'left', 'right', 'sprint', 'jump', 'interact', 'vehicle', 'map', 'horn', 'camera', 'mute'];
+export const REBINDABLE: Action[] = ['forward', 'back', 'left', 'right', 'sprint', 'jump', 'interact', 'vehicle', 'map', 'horn', 'camera', 'mute', 'phone'];
 
 export const ACTION_LABELS: Record<Action, string> = {
   forward: 'Move forward / Accelerate',
@@ -29,6 +29,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   horn: 'Horn (pom pom!)',
   camera: 'Reset camera',
   mute: 'Mute / unmute sound',
+  phone: 'Phone',
   choice1: 'Dialogue choice 1',
   choice2: 'Dialogue choice 2',
   choice3: 'Dialogue choice 3',
@@ -48,6 +49,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   horn: ['KeyH'],
   camera: ['KeyC'],
   mute: ['KeyN'],
+  phone: ['KeyQ'],
   choice1: ['Digit1', 'Numpad1'],
   choice2: ['Digit2', 'Numpad2'],
   choice3: ['Digit3', 'Numpad3'],

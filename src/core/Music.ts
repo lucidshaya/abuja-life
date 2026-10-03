@@ -71,6 +71,10 @@ export class Music {
   private userNode: MediaElementAudioSourceNode | null = null;
   userTrackName: string | null = null;
 
+  get hasThemeFile(): boolean {
+    return !!this.file.city;
+  }
+
   attach(ctx: AudioContext, out: GainNode): void {
     if (this.ctx) return;
     this.ctx = ctx;

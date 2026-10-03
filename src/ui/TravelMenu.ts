@@ -1,61 +1,136 @@
 import { TRAVEL, type TravelSpot } from '../world/locations/Locations';
+import { LANDMARKS } from '../world/MapData';
 import { $, h, show } from './dom';
 
 export type TravelChoice = TravelSpot | 'gate' | 'stay';
+export type TravelMode = 'start' | 'continue' | 'pause' | 'taxi';
 
-/** "Where you dey go?" — pick one of the built-out locations to teleport to. */
+interface Pin {
+  name: string;
+  area: string;
+  desc: string;
+  color: string;
+  featured: boolean;
+  badge?: string;
+  x: number;
+  z: number;
+  choice: TravelChoice;
+  el: HTMLElement;
+}
+
+export type Projector = (x: number, y: number, z: number) => { sx: number; sy: number; visible: boolean };
+
+/**
+ * Bird's-eye travel picker: the camera hovers over the whole 3D city and
+ * each place gets a pin. Hover (or tap) a pin to see what's there, click to go.
+ */
 export class TravelMenu {
   private root = $('travel');
+  private layer = h('div.tv-pins');
+  private card = h('div.tv-card.hidden');
+  private pins: Pin[] = [];
+  private selected: Pin | null = null;
+  private onPick: ((c: TravelChoice) => void) | null = null;
+  private touchMode = false;
   onClick: () => void = () => {};
 
   get open(): boolean {
     return !this.root.classList.contains('hidden');
   }
 
-  show(mode: 'start' | 'continue' | 'pause', onPick: (c: TravelChoice) => void, onBack?: () => void): void {
+  show(mode: TravelMode, onPick: (c: TravelChoice) => void, onBack?: () => void, extra?: { x: number; z: number }): void {
+    this.onPick = onPick;
+    this.selected = null;
+    this.touchMode = document.body.classList.contains('touch-mode');
     const r = this.root;
     r.innerHTML = '';
-    const pick = (c: TravelChoice) => {
-      this.onClick();
-      this.hide();
-      onPick(c);
+    this.layer.innerHTML = '';
+    this.pins = [];
+    const add = (p: Omit<Pin, 'el'>) => {
+      const el = h('button.tv-pin' + (p.featured ? '.feat' : '') + (p.badge ? '.special' : ''), { type: 'button', style: `--c:${p.color}`, 'aria-label': p.name },
+        h('span.tv-dot', {}, h('span.tv-ring')),
+        h('span.tv-label', { text: p.name }),
+      );
+      const pin: Pin = { ...p, el };
+      el.addEventListener('pointerenter', (e) => {
+        if ((e as PointerEvent).pointerType !== 'touch') this.select(pin);
+      });
+      el.addEventListener('pointerdown', (e) => {
+        this.touchMode = (e as PointerEvent).pointerType === 'touch';
+      });
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.touchMode && this.selected !== pin) this.select(pin);
+        else this.pick(pin);
+      });
+      this.layer.append(el);
+      this.pins.push(pin);
     };
-    const first =
-      mode === 'start'
-        ? this.card({ name: 'Abuja City Gate', area: 'Start here', desc: 'Begin your Abuja story under the famous gate. Uncle Emeka dey wait.', color: '#0f7a45', featured: false }, () => pick('gate'), 'START')
-        : mode === 'continue'
-          ? this.card({ name: 'Continue where you stopped', area: 'Your last spot', desc: 'Pick up right where you left off.', color: '#3a4250', featured: false }, () => pick('stay'), 'RESUME')
-          : null;
-    const featured = TRAVEL.filter((t) => t.featured);
-    const others = TRAVEL.filter((t) => !t.featured);
+    if (mode === 'start') {
+      add({ name: 'Abuja City Gate', area: 'Start here', desc: 'Begin your Abuja story under the famous gate. Uncle Emeka dey wait.', color: '#0f7a45', featured: false, badge: 'START', x: LANDMARKS.cityGate.x, z: LANDMARKS.cityGate.z, choice: 'gate' });
+    }
+    if (mode === 'continue' && extra) {
+      add({ name: 'Continue here', area: 'Where you stopped', desc: 'Pick up right where you left off.', color: '#ffffff', featured: false, badge: 'YOU', x: extra.x, z: extra.z, choice: 'stay' });
+    }
+    for (const t of TRAVEL) add({ name: t.name, area: t.area, desc: t.desc, color: t.color, featured: t.featured, x: t.pin?.x ?? t.x, z: t.pin?.z ?? t.z, choice: t });
+
+    const title = mode === 'taxi' ? 'Where we dey go, boss?' : 'Where you dey go?';
+    const sub = mode === 'taxi' ? 'Danladi go drop you anywhere for ₦2,500. Pick a place on the map.' : this.touchMode ? 'Tap a pin to see the place, then tap Go.' : 'Hover over a place to see it. Click to travel there.';
+    const list = h('div.tv-list', {}, ...this.pins.map((p) =>
+      h('button.tcard', { type: 'button', style: `--c:${p.color}`, onclick: () => this.pick(p), onmouseenter: () => this.select(p) },
+        h('span.tl-dot'), h('span.tl-name', { text: p.name }), p.featured ? h('span.tl-star', { text: '★' }) : p.badge ? h('span.tl-badge', { text: p.badge }) : null,
+      )));
     r.append(
-      h('div.travel-card', {},
-        h('div.travel-head', {},
-          h('div', {}, h('div.travel-title', { text: 'Where you dey go?' }), h('div.travel-sub', { text: 'Teleport straight there. You can still drive between places.' })),
-          onBack ? h('button.btn.small', { type: 'button', onclick: () => { this.onClick(); this.hide(); onBack(); } }, 'Back') : null,
-        ),
-        h('div.travel-scroll', {},
-          first ? h('div.travel-grid.one', {}, first) : null,
-          h('div.travel-label', { text: 'Featured — fully built out' }),
-          h('div.travel-grid.big', {}, ...featured.map((t) => this.card(t, () => pick(t)))),
-          h('div.travel-label', { text: 'More places' }),
-          h('div.travel-grid', {}, ...others.map((t) => this.card(t, () => pick(t)))),
-        ),
+      this.layer,
+      h('div.tv-top', {},
+        h('div', {}, h('div.travel-title', { text: title }), h('div.travel-sub', { text: sub })),
+        onBack ? h('button.btn.small', { type: 'button', onclick: () => { this.onClick(); this.hide(); onBack(); } }, mode === 'taxi' ? 'Cancel ride' : 'Back') : null,
       ),
+      this.card,
+      h('div.tv-side', {}, h('div.travel-label', { text: 'All places  •  ★ = fully built out' }), list),
     );
+    show(this.card, false);
     show(r, true);
+  }
+
+  private select(p: Pin): void {
+    if (this.selected === p) return;
+    this.selected = p;
+    for (const q of this.pins) q.el.classList.toggle('sel', q === p);
+    this.card.innerHTML = '';
+    this.card.style.setProperty('--c', p.color);
+    this.card.append(
+      h('div.tvc-band', {}, h('span', { text: p.area }), p.featured ? h('span.tc-badge', { text: 'FEATURED' }) : p.badge ? h('span.tc-badge', { text: p.badge }) : null),
+      h('div.tvc-name', { text: p.name }),
+      h('div.tvc-desc', { text: p.desc }),
+      h('button.btn.primary.tvc-go', { type: 'button', onclick: () => this.pick(p) }, 'Go there ▸'),
+    );
+    show(this.card, true);
+  }
+
+  private pick(p: Pin): void {
+    this.onClick();
+    const cb = this.onPick;
+    this.hide();
+    cb?.(p.choice);
   }
 
   hide(): void {
     show(this.root, false);
+    this.onPick = null;
   }
 
-  private card(t: Pick<TravelSpot, 'name' | 'area' | 'desc' | 'color' | 'featured'>, fn: () => void, badge?: string): HTMLElement {
-    return h('button.tcard' + (t.featured ? '.feat' : ''), { type: 'button', style: `--c:${t.color}`, onclick: fn },
-      h('span.tc-band', {}, h('span.tc-area', { text: t.area }), badge || t.featured ? h('span.tc-badge', { text: badge ?? 'FEATURED' }) : null),
-      h('span.tc-name', { text: t.name }),
-      h('span.tc-desc', { text: t.desc }),
-      h('span.tc-go', { text: 'Teleport ▸' }),
-    );
+  /** Position pins over the 3D view each frame. */
+  update(project: Projector): void {
+    if (!this.open) return;
+    for (const p of this.pins) {
+      const s = project(p.x, p.featured ? 24 : 14, p.z);
+      p.el.style.transform = `translate(${s.sx.toFixed(1)}px, ${s.sy.toFixed(1)}px)`;
+      p.el.style.visibility = s.visible ? 'visible' : 'hidden';
+    }
+    if (this.selected && !this.touchMode) {
+      const s = project(this.selected.x, 0, this.selected.z);
+      this.card.classList.toggle('left', s.sx > window.innerWidth * 0.55);
+    }
   }
 }
