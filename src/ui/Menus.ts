@@ -9,6 +9,9 @@ export interface MenuCallbacks {
   onQuit: () => void;
   onSettingsChanged: (s: Settings) => void;
   onClick: () => void;
+  onTravel: () => void;
+  onPickTrack: (file: File) => void;
+  onClearTrack: () => void;
 }
 
 /** Main menu, pause menu, settings (with key remapping) and controls help. */
@@ -20,6 +23,7 @@ export class Menus {
   private continueBtn: HTMLButtonElement;
   private back: 'menu' | 'pause' = 'menu';
   private settings!: Settings;
+  private trackName: string | null = null;
 
   constructor(private input: Input, private cb: MenuCallbacks) {
     const btn = (label: string, fn: () => void, cls = '') =>
@@ -44,6 +48,7 @@ export class Menus {
         h('div.p-title', { text: 'Paused' }),
         h('div.menu-buttons', {},
           btn('Resume', () => cb.onResume(), 'primary'),
+          btn('Fast Travel', () => cb.onTravel()),
           btn('Settings', () => this.openSettings('pause')),
           btn('Controls', () => this.openHelp('pause')),
           btn('Save & Quit to Menu', () => cb.onQuit()),
@@ -84,6 +89,12 @@ export class Menus {
 
   setSettings(s: Settings): void {
     this.settings = s;
+  }
+
+  setTrackName(name: string | null): void {
+    this.trackName = name;
+    const el = document.getElementById('track-name');
+    if (el) el.textContent = name ?? 'Built-in Abuja beats';
   }
 
   private goBack(): void {
@@ -173,6 +184,9 @@ export class Menus {
           row('On-screen key hints', toggle(s.showHints, (v) => (this.settings.showHints = v))),
           h('div.set-section', { text: 'Audio' }),
           row('Volume', slider(0, 1, 0.05, s.volume, (v) => (this.settings.volume = v))),
+          row('Music volume', slider(0, 1, 0.05, s.musicVolume, (v) => (this.settings.musicVolume = v))),
+          row('Mute everything (N)', toggle(s.muted, (v) => (this.settings.muted = v))),
+          this.trackRow(),
           h('div.set-section', { text: 'Keyboard (click to remap)' }),
           bindingsList,
           h('button.btn.small', {
@@ -187,6 +201,22 @@ export class Menus {
         ),
         h('button.btn.primary', { type: 'button', onclick: () => { this.cb.onClick(); this.goBack(); } }, 'Back'),
       ),
+    );
+  }
+
+  /** "Your music": play a song from the player's own device as the soundtrack. */
+  private trackRow(): HTMLElement {
+    const input = h('input', { type: 'file', accept: 'audio/*,.mp3,.m4a,.aac,.wav,.ogg', id: 'track-file', class: 'hidden' }) as HTMLInputElement;
+    input.addEventListener('change', () => {
+      const f = input.files?.[0];
+      if (f) this.cb.onPickTrack(f);
+      input.value = '';
+    });
+    const pickBtn = h('button.btn.small', { type: 'button', onclick: () => { this.cb.onClick(); input.click(); } }, 'Choose song…');
+    const resetBtn = h('button.btn.small', { type: 'button', onclick: () => { this.cb.onClick(); this.cb.onClearTrack(); } }, 'Use built-in');
+    return h('div.set-row.track', {},
+      h('div', {}, h('label', { text: 'Your music' }), h('div.track-name', { id: 'track-name', text: this.trackName ?? 'Built-in Abuja beats' }), h('div.track-hint', { text: 'Pick a song from your phone or PC. It plays on this device only.' })),
+      h('div.track-btns', {}, pickBtn, resetBtn, input),
     );
   }
 

@@ -49,6 +49,31 @@ function rockGeo(seed: number, r: number, h: number, base: number, streak: numbe
   return g;
 }
 
+function emblemTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#0f7a45';
+  g.beginPath();
+  g.arc(128, 128, 126, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#ffffff';
+  g.beginPath();
+  g.arc(128, 128, 104, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#0f7a45';
+  g.font = '900 64px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('FCT', 128, 112);
+  g.font = '700 20px system-ui, sans-serif';
+  g.fillText('UNITY • FAITH', 128, 160);
+  g.fillText('PEACE • PROGRESS', 128, 186);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 function flagTexture(): THREE.Texture {
   const c = document.createElement('canvas');
   c.width = 96;
@@ -111,22 +136,111 @@ export function buildLandmarks(world: CollisionWorld): LandmarkData {
     world.addCircle(a.x - a.r * 0.2, a.z - a.r * 0.9, a.r * 0.5, a.h);
   }
 
-  // ---------- City Gate on the expressway ----------
+  // ---------- Abuja City Gate (spawn) ----------
   {
     const g = LANDMARKS.cityGate;
-    const white = lambert(0xf2efe6);
-    const green = lambert(0x0f6b3a);
+    const white = new THREE.MeshPhongMaterial({ color: 0xf6f3ec, shininess: 30, specular: 0x222222 });
+    const green = lambert(0x0f7a45);
+    const stone = lambert(0xcfc4ad);
+    const gold = new THREE.MeshPhongMaterial({ color: 0xd4a62a, shininess: 90, specular: 0x886622 });
+    const span = 46; // tower centre to centre
+    // Twin towers with tapered profile, green Naija inlays and stone plinths.
     for (const side of [-1, 1]) {
-      const pz = g.z + side * 15;
-      add(new THREE.BoxGeometry(3, 16, 3).translate(0, 8, 0), white, g.x, 0, pz);
-      add(new THREE.BoxGeometry(3.4, 1.2, 3.4).translate(0, 16.6, 0), green, g.x, 0, pz);
-      world.addBox(g.x - 1.5, pz - 1.5, g.x + 1.5, pz + 1.5, 16);
+      const pz = g.z + side * (span / 2);
+      add(new THREE.BoxGeometry(8, 1.4, 9).translate(0, 0.7, 0), stone, g.x, 0, pz);
+      const tower = new THREE.CylinderGeometry(2.6, 3.6, 21, 4, 1).rotateY(Math.PI / 4).scale(1, 1, 1.25).translate(0, 11.9, 0);
+      add(tower, white, g.x, 0, pz);
+      for (const fx of [-1, 1]) add(new THREE.BoxGeometry(0.15, 15, 0.9).translate(0, 9.5, 0), green, g.x + fx * 2.85, 0, pz);
+      add(new THREE.BoxGeometry(5.8, 0.8, 7).translate(0, 22.4, 0), green, g.x, 0, pz);
+      add(new THREE.ConeGeometry(2.6, 4, 4).rotateY(Math.PI / 4).translate(0, 24.8, 0), white, g.x, 0, pz);
+      add(new THREE.SphereGeometry(0.45, 12, 8).translate(0, 27.1, 0), gold, g.x, 0, pz);
+      world.addBox(g.x - 4, pz - 4.5, g.x + 4, pz + 4.5, 22);
+      // Night uplights.
+      const up = new THREE.MeshLambertMaterial({ color: 0xbbbbbb, emissive: 0xfff1c4, emissiveIntensity: 0 });
+      up.userData.glowStrength = 1.2;
+      glowMats.push(up);
+      add(new THREE.BoxGeometry(0.4, 0.3, 6).translate(0, 1.55, 0), up, g.x - 4.1, 0, pz, false);
+      add(new THREE.BoxGeometry(0.4, 0.3, 6).translate(0, 1.55, 0), up, g.x + 4.1, 0, pz, false);
     }
-    add(new THREE.BoxGeometry(2.4, 3.4, 33).translate(0, 18.2, 0), white, g.x, 0, g.z);
-    const arch = new THREE.TorusGeometry(15, 0.8, 8, 24, Math.PI).rotateY(Math.PI / 2);
-    add(arch, green, g.x, 12, g.z);
-    sign('WELCOME TO ABUJA', g.x - 1.25, 18.2, g.z, -Math.PI / 2, 30, 3, { bg: '#0f6b3a', sub: 'Federal Capital Territory • Centre of Unity' });
-    sign('KUBWA • GWARINPA • WUSE', g.x + 1.25, 18.2, g.z, Math.PI / 2, 30, 3, { bg: '#0f6b3a', sub: 'Safe journey. Drive carefully.' });
+    // The span across the expressway.
+    add(new THREE.BoxGeometry(3.6, 5.6, span + 4).translate(0, 17.6, 0), white, g.x, 0, g.z);
+    add(new THREE.BoxGeometry(3.8, 0.5, span + 4.4).translate(0, 14.6, 0), green, g.x, 0, g.z);
+    add(new THREE.BoxGeometry(3.8, 0.5, span + 4.4).translate(0, 20.6, 0), green, g.x, 0, g.z);
+    // Graceful inner arch.
+    const arch = new THREE.TorusGeometry(span / 2 - 2.5, 0.55, 10, 48, Math.PI).rotateY(Math.PI / 2);
+    add(arch, white, g.x, 0.5, g.z);
+    // Crown with the FCT emblem.
+    add(new THREE.CylinderGeometry(0.01, 5, 6, 4).rotateY(Math.PI / 4).scale(0.45, 1, 1).translate(0, 23.8, 0), white, g.x, 0, g.z);
+    for (const side of [-1, 1]) {
+      const em = new THREE.Mesh(new THREE.CircleGeometry(2.1, 32), new THREE.MeshBasicMaterial({ map: emblemTexture(), side: THREE.DoubleSide, toneMapped: false }));
+      em.position.set(g.x + side * 1.85, 23, g.z);
+      em.rotation.y = side * Math.PI / 2;
+      group.add(em);
+      add(new THREE.TorusGeometry(2.15, 0.12, 8, 32).rotateY(Math.PI / 2), gold, g.x + side * 1.85, 23, g.z, false);
+    }
+    sign('WELCOME TO ABUJA', g.x - 1.82, 17.6, g.z, -Math.PI / 2, 34, 3.6, { bg: '#ffffff', fg: '#0f7a45', sub: 'FEDERAL CAPITAL TERRITORY • CENTRE OF UNITY' });
+    sign('THANK YOU FOR VISITING ABUJA', g.x + 1.82, 17.6, g.z, Math.PI / 2, 34, 3.6, { bg: '#ffffff', fg: '#0f7a45', sub: 'Safe journey • Drive with sense' });
+    // Planted median island through the gate.
+    add(new THREE.BoxGeometry(80, 0.3, 2).translate(0, 0.15, 0), stone, g.x, 0, g.z);
+    add(new THREE.BoxGeometry(79, 0.12, 1.6).translate(0, 0.32, 0), lambert(0x4f9a35), g.x, 0, g.z, false);
+    world.addBox(g.x - 40, g.z - 1, g.x + 40, g.z + 1, 0.4);
+    const trunk = lambert(0x6b4a2b);
+    const frond = lambert(0x3f8a2a);
+    for (let i = 0; i < 9; i++) {
+      const px = g.x - 36 + i * 9;
+      if (Math.abs(px - g.x) < 4) continue;
+      add(new THREE.CylinderGeometry(0.2, 0.3, 6, 6).translate(0, 3, 0), trunk, px, 0, g.z);
+      for (let k = 0; k < 7; k++) add(new THREE.BoxGeometry(0.45, 0.06, 2.6).translate(0, 0, 1.3).rotateX(0.45).rotateY((k / 7) * Math.PI * 2 + i).translate(0, 6, 0), frond, px, 0, g.z);
+      world.addCircle(px, g.z, 0.4, 6);
+    }
+    // Landscaped lawns + flower beds either side.
+    for (const side of [-1, 1]) {
+      const lz = g.z + side * 24;
+      add(new THREE.BoxGeometry(110, 0.06, 16).translate(0, 0.03, 0), lambert(0x5fae44), g.x - 10, 0, lz, false);
+      for (let f = 0; f < 10; f++) {
+        const fx = g.x - 58 + f * 11;
+        if (Math.abs(fx - g.x) < 6) continue;
+        const col = [0xd94f8c, 0xffe14a, 0xc0262d, 0xffffff][f % 4];
+        add(new THREE.BoxGeometry(6, 0.35, 2.2).translate(0, 0.17, 0), lambert(col), fx, 0, lz + side * 3);
+      }
+    }
+    // Flag avenue on the west approach.
+    const ftex = flagTexture();
+    for (let i = 0; i < 6; i++) {
+      for (const side of [-1, 1]) {
+        const fx = g.x - 14 - i * 9;
+        const fz = g.z + side * 19.5;
+        add(new THREE.CylinderGeometry(0.1, 0.13, 10, 6).translate(0, 5, 0), lambert(0xe6e6e6), fx, 0, fz);
+        world.addCircle(fx, fz, 0.25, 10);
+        const flagGeo = new THREE.PlaneGeometry(3, 1.5, 8, 1).translate(1.5, 0, 0);
+        const base = Float32Array.from(flagGeo.attributes.position.array as Float32Array);
+        const flag = add(flagGeo, new THREE.MeshLambertMaterial({ map: ftex, side: THREE.DoubleSide }), fx, 9.1, fz, false);
+        flag.rotation.y = Math.PI / 2;
+        const ph = i * 0.7 + side;
+        animators.push((t) => {
+          const p = flagGeo.attributes.position as THREE.BufferAttribute;
+          for (let v = 0; v < p.count; v++) {
+            const x = base[v * 3];
+            p.setZ(v, Math.sin(x * 1.8 - t * 5 + ph) * 0.15 * (x / 3));
+          }
+          p.needsUpdate = true;
+        });
+      }
+    }
+    // "I love Abuja" selfie sign on the south lawn.
+    add(new THREE.BoxGeometry(13, 0.6, 1.6).translate(0, 0.3, 0), stone, g.x - 24, 0, g.z + 26);
+    add(new THREE.BoxGeometry(12.2, 3.1, 1.3).translate(0, 2.2, 0), lambert(0x0f7a45), g.x - 24, 0, g.z + 26);
+    sign('I \u2764 ABUJA', g.x - 24, 2.2, g.z + 25.3, Math.PI, 12, 3, { bg: '#0f7a45', fg: '#ffffff' });
+    sign('I \u2764 ABUJA', g.x - 24, 2.2, g.z + 26.7, 0, 12, 3, { bg: '#0f7a45', fg: '#ffffff' });
+    world.addBox(g.x - 30.5, g.z + 25.2, g.x - 17.5, g.z + 26.8, 3.6);
+    // Police checkpoint canopy east of the gate.
+    add(new THREE.BoxGeometry(5, 0.2, 4).translate(0, 3, 0), lambert(0x1f3f7a), g.x + 14, 0, g.z + 15.5);
+    for (const [ox, oz] of [[-2.3, -1.8], [2.3, -1.8], [-2.3, 1.8], [2.3, 1.8]]) {
+      add(new THREE.CylinderGeometry(0.06, 0.06, 3).translate(0, 1.5, 0), lambert(0x999999), g.x + 14 + ox, 0, g.z + 15.5 + oz);
+      world.addCircle(g.x + 14 + ox, g.z + 15.5 + oz, 0.1, 3);
+    }
+    sign('POLICE CHECKPOINT • STOP & SEARCH', g.x + 14, 3.6, g.z + 13.4, 0, 5, 0.8, { bg: '#1f3f7a' });
+    for (let c = 0; c < 4; c++) add(new THREE.ConeGeometry(0.25, 0.7, 8).translate(0, 0.35, 0), lambert(0xf26b1d), g.x + 8 + c * 2.5, 0, g.z + 10.5, false);
   }
 
   // ---------- National Mosque ----------
@@ -274,7 +388,12 @@ export function buildLandmarks(world: CollisionWorld): LandmarkData {
     const mall = LANDMARKS.jabiMall;
     add(new THREE.BoxGeometry(56, 14, 34).translate(0, 7, 0), new THREE.MeshLambertMaterial({ color: 0xe6e1d6 }), mall.x, 0, mall.z);
     add(new THREE.BoxGeometry(56.2, 6, 0.3).translate(0, 8, 0), new THREE.MeshPhongMaterial({ color: 0x3f6f8f, shininess: 90 }), mall.x, 0, mall.z + 17);
-    sign('LAKESIDE MALL', mall.x, 12.4, mall.z + 17.2, 0, 22, 2.6, { bg: '#ffffff', fg: '#0f4f2a' });
+    sign('JABI LAKE MALL', mall.x, 12.4, mall.z + 17.2, 0, 22, 2.6, { bg: '#ffffff', fg: '#0f4f2a', sub: 'ShopRight • Cinema • Food Court' });
+    // Entrance canopy and glass doors (press E there to go inside).
+    add(new THREE.BoxGeometry(14, 0.4, 5).translate(0, 4.6, 0), lambert(0x0f4f2a), mall.x, 0, mall.z + 19.5);
+    for (const s2 of [-6.5, 6.5]) add(new THREE.CylinderGeometry(0.2, 0.2, 4.6).translate(0, 2.3, 0), lambert(0xdddddd), mall.x + s2, 0, mall.z + 21.5);
+    add(new THREE.BoxGeometry(6, 3.4, 0.2).translate(0, 1.7, 0), new THREE.MeshBasicMaterial({ color: 0xbfe6ff, toneMapped: false }), mall.x, 0, mall.z + 17.15, false);
+    sign('ShopRight', mall.x + 18, 9.4, mall.z + 17.25, 0, 7, 1.6, { bg: '#c0262d' });
     world.addBox(mall.x - 28, mall.z - 17, mall.x + 28, mall.z + 17, 14);
     // Park: benches and trees around the lake.
     const trunkMat = lambert(0x5a3e2b);

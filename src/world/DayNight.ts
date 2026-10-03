@@ -67,6 +67,8 @@ export class DayNight {
   readonly stars: THREE.Points;
   private skyMat: THREE.ShaderMaterial;
   night = 0;
+  /** Indoor lighting override while the player is inside a building. */
+  indoor: 'mall' | 'club' | 'hall' | null = null;
   /** Real seconds per in-game hour. */
   secondsPerHour = 60;
 
@@ -154,6 +156,29 @@ export class DayNight {
     this.stars.scale.setScalar(k);
     this.night = nightFactor(hour);
     this.fill.intensity = 0.1 + this.night * 0.9;
+    if (this.indoor) {
+      // Interiors: fixed artificial light regardless of the time of day.
+      this.sun.position.copy(focus).add(new THREE.Vector3(20, 120, 40));
+      if (this.indoor === 'club') {
+        this.hemi.color.setHex(0x9b6bff);
+        this.hemi.groundColor.setHex(0x301040);
+        this.hemi.intensity = 0.9;
+        this.sun.color.setHex(0xff7af5);
+        this.sun.intensity = 0.35;
+        this.fill.color.setHex(0x6a3cff);
+        this.fill.intensity = 0.55;
+      } else {
+        this.hemi.color.setHex(0xfffaf0);
+        this.hemi.groundColor.setHex(0xb8a88a);
+        this.hemi.intensity = 1.35;
+        this.sun.color.setHex(0xffffff);
+        this.sun.intensity = 0.9;
+        this.fill.color.setHex(0xfff4e0);
+        this.fill.intensity = 0.45;
+      }
+    } else {
+      this.fill.color.setHex(0x7d8fc4);
+    }
     (this.stars.material as THREE.PointsMaterial).opacity = this.night * 0.9;
     worldUniforms.uNight.value = this.night;
     const fog = this.scene.fog as THREE.Fog | null;

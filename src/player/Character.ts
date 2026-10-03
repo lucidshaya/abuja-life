@@ -298,6 +298,8 @@ export class Character {
   private t = Math.random() * 10;
   /** Wave the arms while talking. */
   talking = false;
+  /** Crowd poses: dancing at the club, sitting on a picnic mat, cheering at football. */
+  pose: 'normal' | 'dance' | 'sit' | 'cheer' | 'phone' = 'normal';
 
   constructor(cfg: CharacterConfig, castShadow = true) {
     this.root.add(this.body);
@@ -345,6 +347,11 @@ export class Character {
     if (moving) this.phase += dt * (3 + speed * 1.7);
     const amp = Math.min(0.9, speed * 0.17);
     const sw = Math.sin(this.phase);
+    if (this.pose !== 'normal' && !moving) {
+      this.posed(dt);
+      return;
+    }
+    this.body.rotation.y = 0;
     if (airborne) {
       this.legL.rotation.x = -0.6;
       this.legR.rotation.x = 0.3;
@@ -373,6 +380,53 @@ export class Character {
     this.armR.rotation.z += (zR - this.armR.rotation.z) * k;
     this.body.position.y = moving ? Math.abs(Math.cos(this.phase)) * 0.04 * Math.min(1, speed / 3) : Math.sin(this.t * 2) * 0.006;
     this.body.rotation.x = moving ? Math.min(0.15, speed * 0.02) : 0;
+  }
+
+  private posed(dt: number): void {
+    const t = this.t;
+    const k = Math.min(1, dt * 10);
+    const to = (o: THREE.Object3D, x: number, z: number) => {
+      o.rotation.x += (x - o.rotation.x) * k;
+      o.rotation.z += (z - o.rotation.z) * k;
+    };
+    switch (this.pose) {
+      case 'dance': {
+        const beat = t * 7.4; // ~113 bpm
+        to(this.armL, -2.2 + Math.sin(beat) * 0.6, 0.5 + Math.sin(beat * 0.5) * 0.3);
+        to(this.armR, -2.2 + Math.cos(beat) * 0.6, -0.5 - Math.sin(beat * 0.5) * 0.3);
+        to(this.legL, Math.max(0, Math.sin(beat)) * 0.35, 0);
+        to(this.legR, Math.max(0, -Math.sin(beat)) * 0.35, 0);
+        this.body.position.y = Math.abs(Math.sin(beat)) * 0.08;
+        this.body.rotation.y = Math.sin(beat * 0.5) * 0.35;
+        this.body.rotation.x = 0;
+        break;
+      }
+      case 'sit':
+        to(this.legL, -1.45, 0.08);
+        to(this.legR, -1.45, -0.08);
+        to(this.armL, -0.5, 0.15);
+        to(this.armR, -0.4 + Math.sin(t * 1.3) * 0.15, -0.15);
+        this.body.position.y = -0.47;
+        this.body.rotation.x = -0.05;
+        this.body.rotation.y = 0;
+        break;
+      case 'cheer':
+        to(this.armL, -2.8 + Math.sin(t * 6) * 0.25, 0.3);
+        to(this.armR, -2.8 + Math.cos(t * 6) * 0.25, -0.3);
+        to(this.legL, 0, 0);
+        to(this.legR, 0, 0);
+        this.body.position.y = Math.max(0, Math.sin(t * 6)) * 0.1;
+        this.body.rotation.y = 0;
+        break;
+      case 'phone':
+        to(this.armL, -1.9, 0.6);
+        to(this.armR, 0.05, -0.06);
+        to(this.legL, 0, 0);
+        to(this.legR, 0, 0);
+        this.body.position.y = Math.sin(t * 2) * 0.006;
+        this.body.rotation.y = 0;
+        break;
+    }
   }
 
   dispose(): void {

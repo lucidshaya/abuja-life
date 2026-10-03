@@ -13,6 +13,8 @@ export class CameraRig {
   private shake = 0;
   private fovKick = 0;
   baseFov = 62;
+  /** Lower inside buildings so the camera stays under the ceiling. */
+  maxPitch = 1.2;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
@@ -42,7 +44,7 @@ export class CameraRig {
   ): void {
     const manual = Math.abs(look.x) + Math.abs(look.y) > 1e-5;
     this.yaw -= look.x;
-    this.pitch = clamp(this.pitch + look.y, -0.25, 1.2);
+    this.pitch = clamp(this.pitch + look.y, -0.25, this.maxPitch);
     if (manual) this.idle = 0;
     else this.idle += dt;
     if (opts.followHeading !== undefined && this.idle > (opts.followDelay ?? 1.2)) {

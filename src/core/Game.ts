@@ -19,6 +19,15 @@ import { CAR_SPOTS, LANDMARKS, NPC_SPOTS, SPAWN, WORLD, districtAt, type NpcSpot
 import { updateGlowMaterials, worldUniforms } from '../world/Materials';
 import { Npcs } from '../world/Npc';
 import { Traffic } from '../world/Traffic';
+import { Crowds } from '../world/Crowd';
+import { PORTALS, interiorAt, type Interior, type Portal, type TravelSpot } from '../world/locations/Locations';
+import { buildMall } from '../world/locations/Mall';
+import { buildNile } from '../world/locations/Nile';
+import { buildPark } from '../world/locations/Park';
+import { buildCage, buildGuzape } from '../world/locations/Small';
+import { TravelMenu, type TravelChoice } from '../ui/TravelMenu';
+import { clearTrack, loadTrack, saveTrack } from './TrackStore';
+import { CAR_MODELS } from '../player/Vehicle';
 import { Customizer } from '../ui/Customizer';
 import { Dialogue } from '../ui/Dialogue';
 import { Hud } from '../ui/Hud';
@@ -27,7 +36,7 @@ import { FullMap, MapImage, Minimap, npcMarkers, type MapMarker } from '../ui/Mi
 import { TouchControls } from '../ui/TouchControls';
 import { $, h, naira, show } from '../ui/dom';
 
-type State = 'loading' | 'menu' | 'customize' | 'play' | 'paused' | 'dialogue' | 'map';
+type State = 'loading' | 'menu' | 'customize' | 'play' | 'paused' | 'dialogue' | 'map' | 'travel';
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -81,6 +90,11 @@ export class Game {
   private focus = new THREE.Vector3();
   private menuAngle = 0;
   private parkedDyn: Dynamic[] = [];
+  private crowds!: Crowds;
+  private travel!: TravelMenu;
+  private indoor: Interior | null = null;
+  private fading = false;
+  private muteBtn!: HTMLButtonElement;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.touch = isTouchDevice();
@@ -107,23 +121,35 @@ export class Game {
     this.scene.add(city.group);
     this.glowMats.push(...city.glowMats);
     this.poolMat = city.poolMat;
-    this.world.bounds = { x0: WORLD.x0, z0: WORLD.z0, x1: WORLD.x1, z1: WORLD.z1 };
+    // Interiors sit east of the city, so the bounds cover both; walls fence the city itself.
+    this.world.bounds = { x0: WORLD.x0, z0: WORLD.z0, x1: 1700, z1: WORLD.z1 };
+    this.world.addBox(WORLD.x1, WORLD.z0 - 5, WORLD.x1 + 5, WORLD.z1 + 5, 50);
     progress(0.45, 'Painting Aso Rock and the National Mosque…');
     await nextFrame();
     const lm = buildLandmarks(this.world);
     this.scene.add(lm.group);
     this.glowMats.push(...lm.glowMats);
     this.animators.push(...lm.animators);
+    progress(0.55, 'Stocking ShopRight shelves and filling Millennium Park…');
+    await nextFrame();
+    const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world)];
+    for (const l of locs) {
+      this.scene.add(l.group);
+      this.animators.push(...l.animators);
+      this.glowMats.push(...l.glowMats);
+    }
+    this.crowds = new Crowds(locs.flatMap((l) => l.crowds), this.tier === 'low' ? 0.55 : this.tier === 'medium' ? 0.8 : 1);
+    this.scene.add(this.crowds.root);
     progress(0.65, 'Calling One-Way drivers into position…');
     await nextFrame();
     this.dayNight = new DayNight(this.scene);
     this.traffic = new Traffic(TIERS.high.traffic);
-    this.scene.add(this.traffic.mesh, this.traffic.taxiMesh);
+    this.scene.add(...this.traffic.meshes);
     this.npcs = new Npcs(TIERS.high.walkers);
     this.scene.add(this.npcs.group);
-    for (const s of NPC_SPOTS) this.world.addCircle(s.x, s.z, 0.4, 2);
+    for (const s of NPC_SPOTS) if (s.look !== 'none') this.world.addCircle(s.x, s.z, 0.4, 2);
     for (const c of CAR_SPOTS) {
-      const v = new Vehicle(c.x, c.z, c.heading, c.color);
+      const v = new Vehicle(c.x, c.z, c.heading, c.color, c.model);
       this.cars.push(v);
       this.scene.add(v.root);
     }
@@ -134,6 +160,12 @@ export class Game {
     this.player = new PlayerController(SPAWN.x, SPAWN.z, SPAWN.heading, this.playerChar);
     this.setupUi(city.buildings);
     this.applySettings(this.save.settings);
+    void loadTrack().then((t) => {
+      if (t) {
+        this.audio.music.setUserTrack(t.file, t.name);
+        this.menus.setTrackName(t.name);
+      }
+    });
     progress(0.95, 'Ready. Welcome to Abuja!');
     // Warm up shaders so the first gameplay frame doesn't stutter.
     this.camera.position.set(0, 120, 300);
@@ -156,7 +188,9 @@ export class Game {
     const mapEl = $('map');
     const mapCanvas = h('canvas.fullmap') as HTMLCanvasElement;
     mapEl.append(
-      h('div.map-head', {}, h('span', { text: 'ABUJA — FCT' }), h('button.btn.small', { type: 'button', onclick: () => this.closeMap() }, 'Close ✕')),
+      h('div.map-head', {}, h('span', { text: 'ABUJA — FCT' }), h('div.map-actions', {},
+        h('button.btn.small.primary', { type: 'button', onclick: () => { show($('map'), false); this.openTravel('pause'); } }, 'Fast travel ▸'),
+        h('button.btn.small', { type: 'button', onclick: () => this.closeMap() }, 'Close ✕'))),
       mapCanvas,
       h('div.map-legend', { html: '<span class="dot y"></span> Talk to people &nbsp; <span class="dot b"></span> Cars &nbsp; <span class="dot h"></span> Your flat' }),
     );
@@ -183,13 +217,38 @@ export class Game {
         this.audio.unlock();
         this.audio.click();
       },
+      onTravel: () => this.openTravel('pause'),
+      onPickTrack: (file) => {
+        this.audio.unlock();
+        this.audio.music.setUserTrack(file, file.name);
+        this.menus.setTrackName(file.name);
+        void saveTrack(file, file.name);
+      },
+      onClearTrack: () => {
+        this.audio.music.setUserTrack(null, null);
+        this.menus.setTrackName(null);
+        void clearTrack();
+      },
     });
     this.menus.setSettings(this.save.settings);
+    this.travel = new TravelMenu();
+    this.travel.onClick = () => this.audio.click();
+    this.muteBtn = $('mute') as HTMLButtonElement;
+    this.muteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleMute();
+    });
+    this.muteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    show(this.muteBtn, true);
+    this.syncMute();
     this.input.onDeviceChange = (d) => {
       this.hud.device = d;
       this.refreshTouch();
     };
-    const unlock = () => this.audio.unlock();
+    const unlock = () => {
+      this.audio.unlock();
+      if (this.audio.music.mode === 'off') this.audio.music.setMode('city');
+    };
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
     this.canvas.addEventListener('click', () => {
@@ -242,10 +301,75 @@ export class Game {
       this.resetCars();
       this.player.teleport(SPAWN.x, SPAWN.z, SPAWN.heading);
       this.rig.snapBehind(SPAWN.heading);
+      this.persist();
+      this.openTravel('start');
+    });
+  }
+
+  /** The location picker shown after New Life / Continue, from pause and from the map. */
+  private openTravel(mode: 'start' | 'continue' | 'pause'): void {
+    const prev = this.state;
+    this.state = 'travel';
+    this.unlockPointer();
+    this.menus.hideAll();
+    this.hud.setVisible(false);
+    this.refreshTouch();
+    this.travel.show(mode, (c) => this.travelTo(c, mode), mode === 'pause' ? () => {
+      this.state = prev === 'map' ? 'play' : 'paused';
+      if (this.state === 'paused') this.menus.showPause();
+      else this.startPlay();
+    } : undefined);
+  }
+
+  private travelTo(c: TravelChoice, mode: 'start' | 'continue' | 'pause'): void {
+    const name = this.save.character.name;
+    if (c === 'stay') {
       this.startPlay();
-      this.hud.showToast('WELCOME TO ABUJA', `Oya ${cfg.name}, talk to Uncle Emeka (!) beside you`);
+      this.hud.showToast(`WELCOME BACK, ${name.toUpperCase()}`, 'Abuja missed you small.');
+      return;
+    }
+    const spot: { x: number; z: number; heading: number } = c === 'gate' ? SPAWN : c;
+    this.leaveCar(true);
+    this.fadeTeleport(spot.x, spot.z, spot.heading, () => {
+      this.startPlay();
+      if (c === 'gate') this.hud.showToast('WELCOME TO ABUJA', `Oya ${name}, talk to Uncle Emeka (!) beside you`);
+      else this.hud.showToast((c as TravelSpot).name.toUpperCase(), (c as TravelSpot).desc);
+      if (mode === 'start' && c !== 'gate') this.hud.notify('Tip: open the map (M) and choose Fast travel to hop between places.', 'info');
       this.persist();
     });
+  }
+
+  /** Fade to black, move the player, fade back. */
+  private fadeTeleport(x: number, z: number, heading: number, after?: () => void): void {
+    if (this.fading) return;
+    this.fading = true;
+    const fade = $('fade');
+    fade.classList.add('on');
+    window.setTimeout(() => {
+      this.teleport(x, z, heading);
+      this.district = null;
+      after?.();
+      window.setTimeout(() => {
+        fade.classList.remove('on');
+        this.fading = false;
+      }, 120);
+    }, 280);
+  }
+
+  private toggleMute(): void {
+    this.audio.unlock();
+    this.save.settings.muted = !this.save.settings.muted;
+    this.audio.setMuted(this.save.settings.muted);
+    if (!this.save.settings.muted && this.audio.music.mode === 'off') this.audio.music.setMode(this.indoor?.music ?? 'city');
+    this.syncMute();
+    this.persist();
+  }
+
+  private syncMute(): void {
+    const m = this.save.settings.muted;
+    this.muteBtn.classList.toggle('muted', m);
+    this.muteBtn.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
+    this.muteBtn.title = m ? 'Unmute (N)' : 'Mute (N)';
   }
 
   private continueGame(): void {
@@ -262,8 +386,7 @@ export class Game {
     this.player.teleport(q.x, q.z, p.heading);
     this.rig.snapBehind(p.heading);
     this.menus.hideAll();
-    this.startPlay();
-    this.hud.showToast(`WELCOME BACK, ${this.save.character.name.toUpperCase()}`, 'Abuja missed you small.');
+    this.openTravel('continue');
   }
 
   private startPlay(): void {
@@ -327,6 +450,9 @@ export class Game {
     this.input.sensitivity = s.sensitivity;
     this.input.invertY = s.invertY;
     this.audio.setVolume(s.volume);
+    this.audio.setMusicVolume(s.musicVolume);
+    this.audio.setMuted(s.muted);
+    if (this.muteBtn) this.syncMute();
     const tier = s.quality === 'auto' ? this.tier : s.quality;
     this.applyTier(tier);
   }
@@ -371,6 +497,7 @@ export class Game {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.time += dt;
     this.input.update();
+    if (this.input.wasPressed('mute')) this.toggleMute();
     switch (this.state) {
       case 'play':
         this.updatePlay(dt);
@@ -390,6 +517,9 @@ export class Game {
         this.updateMenuCamera(dt);
         break;
       case 'customize':
+        break;
+      case 'travel':
+        this.updateMenuCamera(dt);
         break;
     }
     if (this.state === 'customize') {
@@ -451,7 +581,14 @@ export class Game {
       const f = c.forward;
       this.parkedDyn.push({ x: c.x + f.x * 1.3, z: c.z + f.z * 1.3, r: 1.05 }, { x: c.x - f.x * 1.3, z: c.z - f.z * 1.3, r: 1.05 });
     }
-    this.world.dynamics = [...this.traffic.dynamics, ...this.npcs.dynamics, ...this.parkedDyn];
+    this.crowds.update(dt, p.x, p.z);
+    this.world.dynamics = [...this.traffic.dynamics, ...this.npcs.dynamics, ...this.parkedDyn, ...this.crowds.dynamics];
+    const inside = interiorAt(p.x, p.z);
+    if (inside !== this.indoor) {
+      this.indoor = inside;
+      this.dayNight.indoor = inside?.light ?? null;
+      this.audio.music.setMode(this.save.settings.muted && this.audio.music.mode === 'off' ? 'off' : inside?.music ?? 'city');
+    }
     if (this.blackout > 0) this.blackout -= dt;
     const bo = worldUniforms.uBlackout.value;
     worldUniforms.uBlackout.value = bo + ((this.blackout > 0 ? 1 : 0) - bo) * Math.min(1, dt * 4);
@@ -474,6 +611,35 @@ export class Game {
       }
     }
     return best;
+  }
+
+  private nearestPortal(x: number, z: number, maxD: number): Portal | null {
+    let best: Portal | null = null;
+    let bd = maxD * maxD;
+    for (const pt of PORTALS) {
+      const d = (pt.x - x) ** 2 + (pt.z - z) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = pt;
+      }
+    }
+    return best;
+  }
+
+  private usePortal(pt: Portal): void {
+    if (pt.gate === 'cage') {
+      const open = this.hour >= 20 || this.hour < 5;
+      if (!open) {
+        this.hud.notify('The Cage never open. Come back by 9pm.', 'bad');
+        return;
+      }
+      if (!this.flags.has('cageRegular')) {
+        this.hud.notify('Bouncer Big Joe dey check people. Talk to am first.', 'bad');
+        return;
+      }
+    }
+    this.audio.door();
+    this.fadeTeleport(pt.to.x, pt.to.z, pt.to.heading);
   }
 
   private nearestCar(x: number, z: number, maxD: number): Vehicle | null {
@@ -530,18 +696,26 @@ export class Game {
       if (jumped) this.audio.jump();
       const moving = this.player.speed > 0.5;
       if (inp.wasPressed('camera')) this.rig.snapBehind(this.player.heading);
+      this.rig.maxPitch = this.indoor ? 0.75 : 1.2;
       this.rig.update(dt, look, new THREE.Vector3(this.player.x, 1.45 + this.player.y, this.player.z), this.world, {
-        distance: 5.2,
+        distance: this.indoor ? 3.6 : 5.2,
         followHeading: analog && moving && move.y > 0.3 ? this.player.heading : undefined,
         followDelay: 0.8,
       });
       this.audio.engine(null);
       this.hud.setSpeed(null);
-      const npc = this.nearestNpc(this.player.x, this.player.z, 2.8);
-      const car = this.nearestCar(this.player.x, this.player.z, 3.8);
-      if (npc) prompt = { action: 'interact', text: `Talk to ${npc.name}`, touch: 'Talk' };
-      else if (car) prompt = { action: 'vehicle', text: 'Enter car', touch: 'Enter' };
-      if (npc && inp.wasPressed('interact')) {
+      const npc = this.nearestNpc(this.player.x, this.player.z, 3.2);
+      const car = this.indoor ? null : this.nearestCar(this.player.x, this.player.z, 3.8);
+      const portal = this.nearestPortal(this.player.x, this.player.z, 2.6);
+      if (portal && (!npc || Math.hypot(portal.x - this.player.x, portal.z - this.player.z) < Math.hypot(npc.x - this.player.x, npc.z - this.player.z))) {
+        prompt = { action: 'interact', text: portal.label, touch: 'Enter' };
+        if (inp.wasPressed('interact')) {
+          this.usePortal(portal);
+          return;
+        }
+      } else if (npc) prompt = { action: 'interact', text: npc.look === 'none' ? npc.name : `Talk to ${npc.name}`, touch: npc.look === 'none' ? 'Use' : 'Talk' };
+      else if (car) prompt = { action: 'vehicle', text: `Enter ${CAR_MODELS[car.model].label}`, touch: 'Enter' };
+      if (npc && !prompt?.text.startsWith('Enter') && !prompt?.text.startsWith('Exit') && inp.wasPressed('interact')) {
         this.talkTo(npc);
         return;
       }
@@ -571,13 +745,14 @@ export class Game {
 
     // Districts & zone events.
     const d = districtAt(p.x, p.z);
-    const id = d?.id ?? 'outskirts';
+    const id = this.indoor ? 'in:' + this.indoor.id : d?.id ?? 'outskirts';
     if (id !== this.district) {
       const first = this.district === null;
       this.district = id;
-      this.hud.setDistrict(d?.name ?? 'FCT Outskirts');
+      const name = this.indoor?.name ?? d?.name ?? 'FCT Outskirts';
+      this.hud.setDistrict(name);
       if (!first || this.playTime > 1) {
-        this.hud.showToast((d?.name ?? 'FCT Outskirts').toUpperCase(), d?.tagline ?? 'Bush road. Watch out for potholes.');
+        this.hud.showToast(name.toUpperCase(), this.indoor?.tagline ?? d?.tagline ?? 'Bush road. Watch out for potholes.');
         this.audio.chime();
       }
     }
@@ -598,7 +773,7 @@ export class Game {
     this.minimapTimer -= dt;
     if (this.minimapTimer <= 0) {
       this.minimapTimer = 1 / 24;
-      const radius = this.car ? 170 : 95;
+      const radius = this.car ? 170 : this.indoor ? 40 : 95;
       this.minimap.draw(p.x, p.z, p.heading, this.rig.yaw, radius, this.markers());
     }
     this.autosave += dt;
@@ -637,7 +812,7 @@ export class Game {
     this.playerChar.root.visible = false;
     this.audio.door();
     this.rig.snapBehind(car.heading);
-    this.hud.notify('Pom pom! Press ' + this.hud.key('horn') + ' to horn', 'info');
+    this.hud.notify(`${CAR_MODELS[car.model].label} — press ${this.hud.key('horn')} to horn`, 'info');
   }
 
   private leaveCar(force: boolean): void {
@@ -714,7 +889,7 @@ export class Game {
     this.player.vx = this.player.vz = 0;
     this.player.char.update(0, 0);
     const npc = spot ? this.npcs.eventNpcs.find((n) => n.spot === spot) : null;
-    if (npc) npc.char.talking = true;
+    if (npc?.char) npc.char.talking = true;
   }
 
   private startEvent(ev: GameEvent, spot: NpcSpot | null): void {
@@ -775,7 +950,7 @@ export class Game {
 
   private endDialogue(): void {
     const npc = this.talkingTo ? this.npcs.eventNpcs.find((n) => n.spot === this.talkingTo) : null;
-    if (npc) npc.char.talking = false;
+    if (npc?.char) npc.char.talking = false;
     this.talkingTo = null;
     this.state = 'play';
     const after = this.pendingAfterDialogue;

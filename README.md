@@ -36,6 +36,30 @@ works from a sub-folder.
 
 All keyboard keys can be remapped in **Settings**. Settings and progress save automatically in the browser.
 
+## Fast travel: 8 places
+
+After **New Life** or **Continue**, pick where to go (also from **Pause → Fast Travel** or **Map → Fast travel**):
+
+- **Jabi Lake Mall** *(featured)*. A full interior: a fountain atrium, walk-in shops (fashion, phones, cinema, books,
+  pharmacy), a food court, a kids zone, and the ShopRight supermarket with aisles, fridges, fresh produce, water pallets
+  and checkouts.
+- **Nile University** *(featured)*. Gate security, the senate building, faculties, the library, Mama Caf, a football
+  match at the Faculty Cup, basketball, hostels, a chapel and a mosque, and a walk-in Lecture Theatre 1.
+- **Millennium Park** *(featured)*. A water channel with cascades and bridges, a central fountain, a pond, a jogging
+  loop, gazebos, a playground, picnics, a pre-wedding shoot, an ice-cream cart and horse rides.
+- **The Cage** (nightclub in Wuse 2). Opens at 9pm, with a bouncer, LED dance floor, DJ, bar and VIP section.
+- **Wuse 2**, **Maitama**, **Guzape Hills**, **Wuse Market**.
+
+New games start at the **Abuja City Gate** on the expressway. Traffic is a mix of Corollas, Mercedes-Benz sedans,
+Changan UNI SUVs and green-and-white Corolla cabs.
+
+## Music
+
+The game plays an original Afrobeats soundtrack, synthesized live (amapiano inside the club). Use the
+speaker button (or **N**) to mute/unmute. To play your own song: **Settings → Your music → Choose song…**. It's
+stored on your device only. To ship a track with the game (only if you have the rights), put it at
+`public/music/theme.mp3` (and optionally `public/music/club.mp3`).
+
 ## What's in v1
 
 - **Map:** 11 areas: Abuja–Kaduna Expressway (Zuma Rock, City Gate), Kubwa, Gwarinpa Estate, Maitama,

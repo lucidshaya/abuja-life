@@ -9,6 +9,8 @@ export interface Settings {
   invertY: boolean;
   showHints: boolean;
   volume: number;
+  musicVolume: number;
+  muted: boolean;
   bindings: Partial<Bindings>;
 }
 
@@ -31,7 +33,7 @@ export interface SaveData {
 export const SAVE_KEY = 'abuja-life-save-v1';
 
 export function defaultSettings(): Settings {
-  return { quality: 'auto', sensitivity: 1, invertY: false, showHints: true, volume: 0.6, bindings: {} };
+  return { quality: 'auto', sensitivity: 1, invertY: false, showHints: true, volume: 0.6, musicVolume: 0.5, muted: false, bindings: {} };
 }
 
 export function newSave(character: CharacterConfig = defaultCharacter()): SaveData {
@@ -89,6 +91,8 @@ export function parseSave(raw: string | null): SaveData | null {
       invertY: !!s.invertY,
       showHints: s.showHints !== false,
       volume: Math.min(1, Math.max(0, num(s.volume, 0.6))),
+      musicVolume: Math.min(1, Math.max(0, num(s.musicVolume, 0.5))),
+      muted: !!s.muted,
       bindings: typeof s.bindings === 'object' && s.bindings ? s.bindings : {},
     },
   };

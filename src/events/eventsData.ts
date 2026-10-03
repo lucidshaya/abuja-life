@@ -428,4 +428,542 @@ export const EVENTS: GameEvent[] = [
       },
     ],
   },
+
+  // ======================= JABI LAKE MALL =======================
+  {
+    id: 'mall-security',
+    title: 'Mall Entrance',
+    speaker: 'Mall Security',
+    trigger: { type: 'npc', npc: 'mallguard', cooldown: 120 },
+    lines: ['Good day! Open your bag. Walk through the detector one by one.'],
+    choices: [
+      { text: 'Open bag, nothing to hide', outcomes: [{ text: 'BEEP! Na your belt buckle. Guard: "Oya pass, enjoy your shopping."' }] },
+      {
+        text: '"Do you know who I am?"',
+        requires: { minClout: 40 },
+        lockedHint: 'Need 40 clout',
+        outcomes: [{ text: 'Guard recognise you: "Ah! Celebrity! Abeg snap with me first."', effects: { clout: 3 } }],
+      },
+      { text: 'Ask if the AC dey work', outcomes: [{ text: 'Guard: "AC dey work since 2019... small small. Na fan we dey use now."' }] },
+    ],
+  },
+  {
+    id: 'mall-checkout',
+    title: 'ShopRight Checkout',
+    speaker: 'Cashier Blessing',
+    trigger: { type: 'npc', npc: 'cashier', hours: [8, 22], cooldown: 90 },
+    unavailable: 'Till don close. Come back tomorrow by 8am.',
+    lines: ['Next customer! You get loyalty card?', 'Make una no rush me o, this machine dey slow today.'],
+    choices: [
+      {
+        text: 'Buy foodstuff for the month (₦18,000)',
+        requires: { minMoney: 18000 },
+        lockedHint: 'Need ₦18,000',
+        outcomes: [{ text: 'Rice, Indomie, tin tomato, milk, Maggi. Your fridge go happy for once.', effects: { money: -18000, clout: 2 } }],
+      },
+      {
+        text: 'Just Indomie and egg (₦3,500)',
+        requires: { minMoney: 3500 },
+        lockedHint: 'Need ₦3,500',
+        outcomes: [{ text: 'Student starter pack. Cashier nod with respect.', effects: { money: -3500 } }],
+      },
+      { text: 'Ask for your ₦50 change', outcomes: [{ text: 'Cashier: "No change. Collect sweet." She give you three Tom-Tom.' }] },
+    ],
+  },
+  {
+    id: 'mall-water',
+    title: 'Bottled Water',
+    speaker: 'Pallets of water',
+    trigger: { type: 'npc', npc: 'water', cooldown: 60 },
+    lines: ['Pallets of table water stacked high. Abuja heat no be joke.'],
+    choices: [
+      {
+        text: 'Buy a pack of water (₦2,500)',
+        requires: { minMoney: 2500 },
+        lockedHint: 'Need ₦2,500',
+        outcomes: [{ text: 'You drink two bottles before you reach the till. Hydrated king/queen.', effects: { money: -2500, clout: 1 } }],
+      },
+      {
+        text: 'Carry two packs to show strength (₦5,000)',
+        requires: { minMoney: 5000 },
+        lockedHint: 'Need ₦5,000',
+        outcomes: [
+          { weight: 2, text: 'Everybody see your muscle. One aunty clap for you.', effects: { money: -5000, clout: 3 } },
+          { weight: 1, text: 'One pack burst. Water everywhere. Cleaner dey look you anyhow.', effects: { money: -5000, clout: -2 } },
+        ],
+      },
+      { text: 'Stand by the fridge for free AC', outcomes: [{ text: 'You stand there for 10 minutes. Best part of your day.' }] },
+    ],
+  },
+  {
+    id: 'mall-promo',
+    title: 'Free Tasting',
+    speaker: 'Promo Girl',
+    trigger: { type: 'npc', npc: 'promo', cooldown: 120 },
+    lines: ['Taste our new yoghurt! Free! Free! Strawberry and coconut!'],
+    choices: [
+      { text: 'Taste am (free)', outcomes: [{ text: 'E sweet! You collect three more "samples". She don dey look you.' }] },
+      {
+        text: 'Taste and buy a pack (₦1,500)',
+        requires: { minMoney: 1500 },
+        lockedHint: 'Need ₦1,500',
+        outcomes: [{ text: 'She smile: "Thank you! Come back tomorrow, new flavour dey come."', effects: { money: -1500, clout: 1 } }],
+      },
+      {
+        text: 'Ask for her number',
+        outcomes: [
+          { weight: 1, text: 'She write am for the yoghurt cup. Victory!', effects: { clout: 4 } },
+          { weight: 2, text: 'She lift her hand: wedding ring. "My husband dey aisle 3."', effects: { clout: -1 } },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'mall-food',
+    title: 'Food Court',
+    speaker: 'Jollof Junction',
+    trigger: { type: 'npc', npc: 'food', hours: [10, 22], cooldown: 120 },
+    unavailable: 'Kitchen never open. Pot dey wash. Come back by 10.',
+    lines: ['Welcome to Jollof Junction! Party jollof, fried rice, chicken, plantain!'],
+    choices: [
+      {
+        text: 'Jollof + chicken + dodo (₦4,500)',
+        requires: { minMoney: 4500 },
+        lockedHint: 'Need ₦4,500',
+        outcomes: [{ text: 'Smoky party jollof. You close your eyes and see your ancestors.', effects: { money: -4500, clout: 2, timeSkip: 0.5 } }],
+      },
+      {
+        text: 'Shawarma, extra sausage (₦3,000)',
+        requires: { minMoney: 3000 },
+        lockedHint: 'Need ₦3,000',
+        outcomes: [{ text: 'The shawarma big like your future. You no fit finish am.', effects: { money: -3000, timeSkip: 0.5 } }],
+      },
+      {
+        text: 'Argue say Ghana jollof better',
+        outcomes: [
+          { weight: 2, text: 'The whole food court turn look you. Security dey come your side.', effects: { clout: -4 } },
+          { weight: 1, text: 'One Ghanaian customer hail you. You don get new friend.', effects: { clout: 2 } },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'mall-cinema',
+    title: 'Lakeside Cinemas',
+    speaker: 'Ticket Counter',
+    trigger: { type: 'npc', npc: 'cinema', hours: [10, 24], cooldown: 180 },
+    unavailable: 'First show na 10am. Come back.',
+    lines: ['Now showing: "Wahala in Wuse" (Nollywood blockbuster) and "Fast 15".', 'Popcorn combo dey too.'],
+    choices: [
+      {
+        text: 'Watch the Nollywood movie (₦4,000)',
+        requires: { minMoney: 4000 },
+        lockedHint: 'Need ₦4,000',
+        outcomes: [{ text: 'Three plot twists, one ghost and a village meeting. Classic!', effects: { money: -4000, clout: 2, timeSkip: 2 } }],
+      },
+      {
+        text: 'Watch Fast 15 (₦5,000)',
+        requires: { minMoney: 5000 },
+        lockedHint: 'Need ₦5,000',
+        outcomes: [{ text: 'Cars fly. Family is everything. You wan drift for Area 1 now.', effects: { money: -5000, clout: 2, timeSkip: 2 } }],
+      },
+      {
+        text: 'Buy popcorn only (₦2,000)',
+        requires: { minMoney: 2000 },
+        lockedHint: 'Need ₦2,000',
+        outcomes: [{ text: 'You eat popcorn for the lobby like say you dey watch life.', effects: { money: -2000 } }],
+      },
+      { text: 'Just look at the posters', outcomes: [{ text: '"Coming soon: Kubwa Traffic — The Movie (4 hours long)."' }] },
+    ],
+  },
+  {
+    id: 'mall-phone',
+    title: 'Gadget Palace',
+    speaker: 'Phone Seller',
+    trigger: { type: 'npc', npc: 'phone', cooldown: 150 },
+    lines: ['Original! UK-used! Brand new! Which one you want?', 'I fit do you good price, my person.'],
+    choices: [
+      {
+        text: 'Buy a new phone (₦120,000)',
+        requires: { minMoney: 120000 },
+        lockedHint: 'Need ₦120,000',
+        outcomes: [{ text: 'New phone, new you. Your status don dey show in HD.', effects: { money: -120000, clout: 10 } }],
+      },
+      {
+        text: 'Fix your cracked screen (₦15,000)',
+        requires: { minMoney: 15000 },
+        lockedHint: 'Need ₦15,000',
+        outcomes: [{ text: 'Screen fresh like new. You fit see your messages again.', effects: { money: -15000, clout: 2 } }],
+      },
+      { text: 'Just dey price', outcomes: [{ text: '"Customer, last price... ₦5k off. Final. Okay ₦7k. My oga go kill me."' }] },
+    ],
+  },
+  // ======================= NILE UNIVERSITY =======================
+  {
+    id: 'nile-gate',
+    title: 'University Gate',
+    speaker: 'Campus Security',
+    trigger: { type: 'npc', npc: 'uniguard', cooldown: 120 },
+    lines: ['Stop there! ID card? Visitors must sign the book.'],
+    choices: [
+      { text: 'Sign the visitors book', outcomes: [{ text: 'Name: you. Purpose of visit: "to hammer". Guard: "Oya pass."' }] },
+      { text: '"Sir, I be fresher, abeg"', outcomes: [{ text: 'Guard laugh: "Fresher! Welcome. Go Senate building go register."', effects: { flag: 'student', clout: 1 } }] },
+      {
+        text: 'Give am ₦500 for pure water',
+        requires: { minMoney: 500 },
+        lockedHint: 'Need ₦500',
+        outcomes: [{ text: 'Guard: "My guy! You fit come anytime."', effects: { money: -500, clout: 1 } }],
+      },
+    ],
+  },
+  {
+    id: 'nile-lecture',
+    title: 'Lecture Theatre 1',
+    speaker: 'Dr. Okafor',
+    trigger: { type: 'npc', npc: 'lecturer', hours: [8, 18], cooldown: 240 },
+    unavailable: 'Lecture don end. Dr. Okafor don go department meeting.',
+    lines: ["You're late. Sit down.", "Today's topic: Thermodynamics of Jollof Rice, Part 2. This WILL come out in exam."],
+    choices: [
+      { text: 'Pay attention and take notes', outcomes: [{ text: 'You understand everything. For once. Your course mates go beg for your notes.', effects: { timeSkip: 2, clout: 3, flag: 'notes' } }] },
+      {
+        text: 'Sleep for back row',
+        outcomes: [
+          { weight: 1, text: 'Nobody notice. Best sleep of your life.', effects: { timeSkip: 2 } },
+          { weight: 1, text: '"YOU! Back there! Come and solve this on the board!" Disgrace for the whole class to see.', effects: { timeSkip: 2, clout: -3 } },
+        ],
+      },
+      { text: '"Sir, will this come out in exam?"', outcomes: [{ text: 'Dr. Okafor: "Everything will come out in exam." The whole class groan.' }] },
+    ],
+  },
+  {
+    id: 'nile-library',
+    title: 'University Library',
+    speaker: 'Librarian',
+    trigger: { type: 'npc', npc: 'librarian', hours: [8, 22], cooldown: 180 },
+    unavailable: 'Library don close. Read for your room.',
+    lines: ['Shhh! Library rules: no noise, no food, no sleeping on the books.'],
+    choices: [
+      { text: 'Read for exams (2 hours)', outcomes: [{ text: 'You read like say your life depend on am. E actually depend on am.', effects: { timeSkip: 2, clout: 2, flag: 'notes' } }] },
+      { text: 'Use the free WiFi', outcomes: [{ text: 'Download speed: 2kb/s. You watch one TikTok in 40 minutes.', effects: { timeSkip: 0.7 } }] },
+      {
+        text: 'Sneak in small chops',
+        outcomes: [
+          { weight: 1, text: 'Successful mission. Puff-puff for inside library. Legend.', effects: { clout: 2 } },
+          { weight: 1, text: 'Librarian catch you: "OUT!" Everybody look you as you dey waka.', effects: { clout: -3 } },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'nile-caf',
+    title: 'Mama Caf',
+    speaker: 'Mama Caf',
+    trigger: { type: 'npc', npc: 'cafmama', hours: [7, 21], cooldown: 120 },
+    unavailable: 'Mama don pack. Pot don empty. Come tomorrow.',
+    lines: ['My pikin! Rice and beans with fish, ₦1,500. Swallow dey too.'],
+    choices: [
+      {
+        text: 'Rice and beans + fish (₦1,500)',
+        requires: { minMoney: 1500 },
+        lockedHint: 'Need ₦1,500',
+        outcomes: [{ text: 'Mama add extra pomo because she like your face.', effects: { money: -1500, clout: 1 } }],
+      },
+      {
+        text: 'Beg for student discount',
+        outcomes: [
+          { weight: 1, text: 'Mama smile: "Oya ₦1,000. Study hard o."', effects: { money: -1000, clout: 1 } },
+          { weight: 1, text: 'Mama: "Discount na your papa get am?"' },
+        ],
+      },
+      {
+        text: 'Eat on credit',
+        requires: { notFlag: 'cafDebt' },
+        lockedHint: 'You already owe Mama',
+        outcomes: [{ text: 'Mama write your name for her black book. Your name don dey there with 40 other people.', effects: { flag: 'cafDebt' } }],
+      },
+    ],
+  },
+  {
+    id: 'nile-football',
+    title: 'Faculty Cup',
+    speaker: 'Team Captain Tunde',
+    trigger: { type: 'npc', npc: 'captain', hours: [7, 19], cooldown: 240 },
+    unavailable: 'Too dark to play. Floodlight no dey work since 2015.',
+    lines: ['We need one more player! Law vs Engineering. Winner take bragging rights.', 'You fit play?'],
+    choices: [
+      {
+        text: 'Play striker',
+        outcomes: [
+          { weight: 1, text: 'You score the winning goal! The whole pitch carry you for shoulder.', effects: { clout: 6, timeSkip: 1.5 } },
+          { weight: 1, text: 'You miss open goal. Dem go talk am till graduation.', effects: { clout: -3, timeSkip: 1.5 } },
+        ],
+      },
+      {
+        text: 'Play goalkeeper',
+        outcomes: [
+          { weight: 1, text: 'You save penalty! Engineering students dey cry.', effects: { clout: 5, timeSkip: 1.5 } },
+          { weight: 1, text: 'Ball pass under your leg. Twice.', effects: { clout: -2, timeSkip: 1.5 } },
+        ],
+      },
+      { text: 'Just watch and cheer', outcomes: [{ text: 'You shout "GOAL!" for the wrong team. Nobody notice.', effects: { clout: 1, timeSkip: 1 } }] },
+    ],
+  },
+  {
+    id: 'nile-sug',
+    title: 'SUG Campaign',
+    speaker: 'SUG Candidate',
+    trigger: { type: 'npc', npc: 'sug', cooldown: 180 },
+    lines: ['Vote for me for SUG President!', 'Free WiFi, constant light, and jollof every Friday!'],
+    choices: [
+      { text: 'Promise your vote', outcomes: [{ text: 'He dash you branded biro and ₦2,000 "transport".', effects: { money: 2000, clout: 1 } }] },
+      { text: 'Ask how he go do am', outcomes: [{ text: 'Candidate: "Next question."' }] },
+      {
+        text: 'Run against am',
+        requires: { minClout: 30 },
+        lockedHint: 'Need 30 clout',
+        outcomes: [{ text: 'Your campaign trend on campus! You win SUG President! First policy: longer caf hours.', effects: { clout: 10, flag: 'sugPresident' } }],
+      },
+    ],
+  },
+  // ======================= MILLENNIUM PARK =======================
+  {
+    id: 'park-photo',
+    title: 'Snap Picture',
+    speaker: 'Park Photographer',
+    trigger: { type: 'npc', npc: 'photographer', hours: [7, 19], cooldown: 120 },
+    unavailable: 'Light don go. My camera no dey see for dark.',
+    lines: ['Snap picture! ₦2,000 for four copies.', 'I go make you look like celebrity.'],
+    choices: [
+      {
+        text: 'Snap by the gate (₦2,000)',
+        requires: { minMoney: 2000 },
+        lockedHint: 'Need ₦2,000',
+        outcomes: [{ text: 'Fine picture! You post am: "Abuja vibes only."', effects: { money: -2000, clout: 3 } }],
+      },
+      {
+        text: 'Snap with the fountain (₦3,500)',
+        requires: { minMoney: 3500 },
+        lockedHint: 'Need ₦3,500',
+        outcomes: [{ text: 'Water splash, sun shine, angle correct. 500 likes in one hour.', effects: { money: -3500, clout: 5 } }],
+      },
+      { text: 'No thanks', outcomes: [{ text: 'Photographer: "Your face don fine already sha."' }] },
+    ],
+  },
+  {
+    id: 'park-wedding',
+    title: 'Pre-wedding Shoot',
+    speaker: 'The Couple',
+    trigger: { type: 'npc', npc: 'groom', hours: [8, 19], cooldown: 200 },
+    unavailable: 'The couple don pack go. Light no good again.',
+    lines: ['Groom: "Abeg, we dey shoot our pre-wedding pictures!"', 'Bride: "Fit help us hold the reflector small?"'],
+    choices: [
+      { text: 'Help them', outcomes: [{ text: 'Bride give you small chops and IV card. You don become wedding committee.', effects: { clout: 3, money: 1000 } }] },
+      {
+        text: 'Photobomb the picture',
+        outcomes: [
+          { weight: 1, text: 'Photographer vex, delete the picture. Groom dey look you.', effects: { clout: -2 } },
+          { weight: 1, text: 'Your photobomb go viral. Even the bride laugh.', effects: { clout: 4 } },
+        ],
+      },
+      { text: 'Congratulate them and waka', outcomes: [{ text: '"Thank you! Aso-ebi na ₦35,000 o, make we add you?"' }] },
+    ],
+  },
+  {
+    id: 'park-icecream',
+    title: 'Ice Cream Cart',
+    speaker: 'Ice Cream Man',
+    trigger: { type: 'npc', npc: 'icecream', cooldown: 90 },
+    lines: ['Ice cream! Yoghurt! Cold zobo!', 'Ring ring!'],
+    choices: [
+      {
+        text: 'Ice cream (₦800)',
+        requires: { minMoney: 800 },
+        lockedHint: 'Need ₦800',
+        outcomes: [{ text: 'Cold, sweet, small melting for your hand. Perfect.', effects: { money: -800, clout: 1 } }],
+      },
+      {
+        text: 'Buy for all the kids around (₦5,000)',
+        requires: { minMoney: 5000 },
+        lockedHint: 'Need ₦5,000',
+        outcomes: [{ text: 'The children shout your name like say you be Father Christmas.', effects: { money: -5000, clout: 6 } }],
+      },
+      { text: 'Bargain', outcomes: [{ text: '"Oga, ice cream dey melt. I no get time for price!"' }] },
+    ],
+  },
+  {
+    id: 'park-horse',
+    title: 'Horse Ride',
+    speaker: 'Horse Owner',
+    trigger: { type: 'npc', npc: 'horse', hours: [7, 19], cooldown: 180 },
+    unavailable: 'Horse don tire. E dey rest.',
+    lines: ['Horse ride round the park! ₦3,000. Picture free!'],
+    choices: [
+      {
+        text: 'Ride the horse (₦3,000)',
+        requires: { minMoney: 3000 },
+        lockedHint: 'Need ₦3,000',
+        outcomes: [
+          { weight: 4, text: 'You ride like a Durbar prince. Everybody dey snap you.', effects: { money: -3000, clout: 4, timeSkip: 0.5 } },
+          { weight: 1, text: 'Horse stop suddenly. You land for grass. Your pride don wound.', effects: { money: -3000, clout: -2, timeSkip: 0.5 } },
+        ],
+      },
+      { text: 'Pet the horse', outcomes: [{ text: 'The horse sneeze for your shirt. Thank you, horse.' }] },
+      { text: 'Ask if na real horse', outcomes: [{ text: '"Na Abuja horse. E even get BVN."' }] },
+    ],
+  },
+  {
+    id: 'park-picnic',
+    title: 'Family Picnic',
+    speaker: 'Picnic Family',
+    trigger: { type: 'npc', npc: 'picnic', hours: [9, 19], cooldown: 200 },
+    unavailable: 'The family don pack their mat go house.',
+    lines: ['Come join us! We get jollof, chicken and cold zobo.'],
+    choices: [
+      { text: 'Join the picnic', outcomes: [{ text: 'You chop well. Aunty pack you takeaway. Uncle tell you about his business plan.', effects: { clout: 2, timeSkip: 1 } }] },
+      {
+        text: 'Bring drinks for everybody (₦3,000)',
+        requires: { minMoney: 3000 },
+        lockedHint: 'Need ₦3,000',
+        outcomes: [{ text: 'Uncle: "This one get home training!" You don become family.', effects: { money: -3000, clout: 4, timeSkip: 1 } }],
+      },
+      { text: 'Politely decline', outcomes: [{ text: 'Uncle: "Young people of nowadays!"' }] },
+    ],
+  },
+  // ======================= THE CAGE =======================
+  {
+    id: 'cage-bouncer',
+    title: 'The Cage',
+    speaker: 'Bouncer Big Joe',
+    trigger: { type: 'npc', npc: 'bouncer', hours: [20, 5], cooldown: 15 },
+    unavailable: 'We never open. Come back by 9pm. And dress well!',
+    lines: ['Hold on. Wetin you wear? Show your face.'],
+    choices: [
+      {
+        text: 'Walk in confidently',
+        requires: { outfit: ['suit', 'senator', 'agbada', 'asoebi', 'ankara'] },
+        lockedHint: 'Dress up (suit, senator, agbada, ankara or aso-ebi)',
+        outcomes: [{ text: 'Big Joe nod: "Correct. Enjoy." Bass hit your chest as you enter.', effects: { flag: 'cageRegular', teleport: { x: 1423, z: 210, heading: Math.PI } } }],
+      },
+      {
+        text: 'Pay gate fee (₦10,000)',
+        requires: { minMoney: 10000 },
+        lockedHint: 'Need ₦10,000',
+        outcomes: [{ text: 'Big Joe collect am: "Oya, go in."', effects: { money: -10000, flag: 'cageRegular', teleport: { x: 1423, z: 210, heading: Math.PI } } }],
+      },
+      {
+        text: 'Say you know the DJ',
+        outcomes: [
+          { weight: 1, text: 'DJ shout from inside: "Na my guy!" You dey in!', effects: { clout: 2, flag: 'cageRegular', teleport: { x: 1423, z: 210, heading: Math.PI } } },
+          { weight: 2, text: 'Big Joe: "Everybody know DJ. Go back."', effects: { clout: -1 } },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'cage-bar',
+    title: 'The Bar',
+    speaker: 'Bartender',
+    trigger: { type: 'npc', npc: 'bartender', cooldown: 60 },
+    lines: ['Wetin you dey drink tonight? Chapman, Smirnoff, Hennessy?'],
+    choices: [
+      {
+        text: 'Chapman (₦3,000)',
+        requires: { minMoney: 3000 },
+        lockedHint: 'Need ₦3,000',
+        outcomes: [{ text: 'Cold Chapman with cucumber. Sweet like Sunday.', effects: { money: -3000, clout: 1 } }],
+      },
+      {
+        text: 'Bottle service with sparklers (₦150,000)',
+        requires: { minMoney: 150000 },
+        lockedHint: 'Need ₦150,000',
+        outcomes: [{ text: 'Sparklers, ladies, and the DJ shout your name. You are the main character tonight.', effects: { money: -150000, clout: 15 } }],
+      },
+      {
+        text: 'Water abeg (₦500)',
+        requires: { minMoney: 500 },
+        lockedHint: 'Need ₦500',
+        outcomes: [{ text: 'Bartender: "Water na ₦500. Na Abuja be this."', effects: { money: -500 } }],
+      },
+      { text: 'Just lean on the bar', outcomes: [{ text: 'You lean like say you own the place. Nobody believe you.' }] },
+    ],
+  },
+  {
+    id: 'cage-dj',
+    title: 'DJ Booth',
+    speaker: 'DJ Spinall-Abuja',
+    trigger: { type: 'npc', npc: 'dj', cooldown: 90 },
+    lines: ['My guy! Request? E go cost you o.'],
+    choices: [
+      {
+        text: 'Request an Afrobeats banger (₦5,000)',
+        requires: { minMoney: 5000 },
+        lockedHint: 'Need ₦5,000',
+        outcomes: [{ text: 'The whole club scream when the beat drop. You did that.', effects: { money: -5000, clout: 3 } }],
+      },
+      {
+        text: 'Make DJ shout your name (₦20,000)',
+        requires: { minMoney: 20000 },
+        lockedHint: 'Need ₦20,000',
+        outcomes: [{ text: '"BIG SHOUT OUT TO MY GUY FOR THE BUILDING!" You feel like Davido.', effects: { money: -20000, clout: 7 } }],
+      },
+      { text: 'Hype the DJ', outcomes: [{ text: 'DJ: "MY GUYYY!" He play your favourite song anyway.', effects: { clout: 1 } }] },
+    ],
+  },
+  {
+    id: 'cage-dance',
+    title: 'The Dance Floor',
+    speaker: 'The Crowd',
+    trigger: { type: 'npc', npc: 'dancefloor', cooldown: 45 },
+    lines: ['The dance floor dey burn. Amapiano dey knock.'],
+    choices: [
+      {
+        text: 'Show your best moves',
+        outcomes: [
+          { weight: 3, text: 'The crowd make circle for you. Legend!', effects: { clout: 4 } },
+          { weight: 2, text: 'You slip. Somebody record am. E don dey go viral.', effects: { clout: -2 } },
+        ],
+      },
+      {
+        text: 'Dance-off with the best dancer',
+        requires: { minClout: 20 },
+        lockedHint: 'Need 20 clout',
+        outcomes: [{ text: 'You do Zanku, Legwork and Buga back to back. You win!', effects: { clout: 8 } }],
+      },
+      { text: 'Stand by the wall and nod', outcomes: [{ text: 'Classic Abuja big boy move.' }] },
+    ],
+  },
+  // ======================= GUZAPE =======================
+  {
+    id: 'guzape-agent',
+    title: 'Guzape Plots',
+    speaker: 'Estate Agent Kola',
+    trigger: { type: 'npc', npc: 'agent', cooldown: 150 },
+    lines: ['Guzape plot, C of O ready! ₦85 million only.', 'I go even remove my commission... small.'],
+    choices: [
+      {
+        text: 'Buy the plot (₦85,000,000)',
+        requires: { minMoney: 85000000 },
+        lockedHint: 'Need ₦85,000,000',
+        outcomes: [{ text: 'You now own land for Guzape. Your village don hear.', effects: { money: -85000000, clout: 30, flag: 'landlord' } }],
+      },
+      {
+        text: 'Pay inspection fee (₦5,000)',
+        requires: { minMoney: 5000 },
+        lockedHint: 'Need ₦5,000',
+        outcomes: [{ text: 'He show you the plot... na big rock. "Mountain view, sir."', effects: { money: -5000 } }],
+      },
+      { text: 'Say you go think about am', outcomes: [{ text: '"Think fast o! Price go double tomorrow."' }] },
+    ],
+  },
+  {
+    id: 'guzape-view',
+    title: 'Guzape Viewpoint',
+    speaker: 'The View',
+    trigger: { type: 'npc', npc: 'viewpoint', cooldown: 60 },
+    lines: ['From here, the whole of Abuja dey shine. Aso Rock, the mosque, the lights.'],
+    choices: [
+      { text: 'Snap a selfie', outcomes: [{ text: 'Best view for Abuja. Caption: "Grateful."', effects: { clout: 3 } }] },
+      { text: 'Sit and reflect on life', outcomes: [{ text: 'You decide to hustle harder. One day, one of these houses go be your own.', effects: { timeSkip: 1, clout: 1 } }] },
+    ],
+  },
 ];

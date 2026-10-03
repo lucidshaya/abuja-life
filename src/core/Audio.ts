@@ -1,5 +1,11 @@
+import { Music } from './Music';
+
 /** Tiny synthesized sound kit — no audio files to download. */
 export class Audio {
+  readonly music = new Music();
+  private musicGain: GainNode | null = null;
+  muted = false;
+  musicVolume = 0.5;
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private engineOsc: OscillatorNode | null = null;
@@ -17,8 +23,12 @@ export class Audio {
       const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new Ctx();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this.volume;
+      this.master.gain.value = this.muted ? 0 : this.volume;
       this.master.connect(this.ctx.destination);
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = this.musicVolume * 0.6;
+      this.musicGain.connect(this.master);
+      this.music.attach(this.ctx, this.musicGain);
     } catch {
       this.ctx = null;
     }
@@ -26,7 +36,17 @@ export class Audio {
 
   setVolume(v: number): void {
     this.volume = v;
-    if (this.master) this.master.gain.value = v;
+    if (this.master) this.master.gain.value = this.muted ? 0 : v;
+  }
+
+  setMusicVolume(v: number): void {
+    this.musicVolume = v;
+    if (this.musicGain) this.musicGain.gain.value = v * 0.6;
+  }
+
+  setMuted(m: boolean): void {
+    this.muted = m;
+    if (this.master && this.ctx) this.master.gain.setTargetAtTime(m ? 0 : this.volume, this.ctx.currentTime, 0.05);
   }
 
   private tone(freq: number, dur: number, type: OscillatorType, gain: number, delay = 0, slide = 0): void {

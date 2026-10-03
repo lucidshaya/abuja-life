@@ -198,6 +198,48 @@ input[type='range'] { width: min(240px, 45vw); accent-color: var(--gold); }
 .cz-actions .btn { flex: 1; text-align: center; }
 .cz-actions .btn:hover { transform: none; }
 
+/* ---------- Fast travel ---------- */
+#travel { z-index: 32; background: radial-gradient(ellipse at 50% 20%, rgba(8, 50, 29, 0.55), rgba(4, 14, 8, 0.88)); }
+.travel-card { width: min(1040px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; }
+.travel-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 14px; }
+.travel-title { font: 800 clamp(28px, 5vw, 46px) var(--head); color: #fff; text-shadow: 0 4px 0 var(--green-d); line-height: 1; }
+.travel-sub { opacity: 0.8; margin-top: 6px; font-size: 14px; }
+.travel-scroll { overflow-y: auto; touch-action: pan-y; padding-bottom: 8px; }
+.travel-label { font: 800 12px var(--head); text-transform: uppercase; letter-spacing: 0.12em; color: var(--gold); margin: 14px 0 8px; }
+.travel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.travel-grid.big { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.travel-grid.one { grid-template-columns: 1fr; }
+.tcard {
+  text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 0 0 14px; border-radius: 16px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--glass-2); color: var(--cream); transition: transform 0.12s, border-color 0.15s; min-height: 132px;
+}
+.tcard:hover, .tcard:focus-visible { transform: translateY(-3px); border-color: var(--c); outline: none; }
+.tcard.feat { min-height: 168px; }
+.tc-band { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 55%, #000)); }
+.tcard.feat .tc-band { padding: 18px 14px; }
+.tc-area { font: 700 12px var(--head); text-transform: uppercase; letter-spacing: 0.08em; color: #fff; }
+.tc-badge { font: 800 10px var(--head); letter-spacing: 0.1em; background: var(--gold); color: var(--ink); padding: 3px 8px; border-radius: 99px; }
+.tc-name { font: 800 20px var(--head); padding: 0 14px; color: #fff; }
+.tcard.feat .tc-name { font-size: 24px; }
+.tc-desc { font-size: 13px; line-height: 1.45; opacity: 0.82; padding: 0 14px; flex: 1; }
+.tc-go { font: 800 13px var(--head); color: var(--gold); padding: 0 14px; }
+#fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 70; transition: opacity 0.26s ease; }
+#fade.on { opacity: 1; }
+#mute {
+  position: fixed; z-index: 40; top: calc(14px + var(--safe-t)); right: calc(196px + var(--safe-r)); width: 46px; height: 46px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.7); background: var(--glass); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0;
+}
+#mute svg { width: 24px; height: 24px; fill: currentColor; }
+#mute .ic-off { display: none; }
+#mute.muted { background: rgba(192, 38, 45, 0.85); }
+#mute.muted .ic-on { display: none; }
+#mute.muted .ic-off { display: block; }
+.map-actions { display: flex; gap: 8px; }
+.set-row.track { align-items: flex-start; }
+.track-name { font: 700 14px var(--head); color: var(--gold); margin-top: 4px; word-break: break-all; }
+.track-hint { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+.track-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
 /* ---------- Touch controls ---------- */
 #touch { position: fixed; inset: 0; z-index: 12; pointer-events: none; }
 #touch > * { pointer-events: auto; }
@@ -257,6 +299,9 @@ body.touch-mode .speedo { right: auto; left: 50%; transform: translateX(-50%); b
   .cz-panel { width: 52vw; padding-top: calc(12px + var(--safe-t)); }
   .cz-title { font-size: 18px; margin-bottom: 8px; }
   .toast { top: 30%; }
+  #mute { right: calc(140px + var(--safe-r)); width: 40px; height: 40px; }
+  .travel-grid.big { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .tcard.feat { min-height: 140px; }
   .toast .t { font-size: clamp(24px, 5vw, 40px); }
 }
 @media (max-width: 560px) and (orientation: portrait) {
