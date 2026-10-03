@@ -3,7 +3,7 @@
  * licensing. "city" is a mid-tempo Afrobeats groove with highlife guitar and a
  * talking-drum fill; "club" is an amapiano groove with log drums.
  *
- * If a file exists at music/theme.mp3 (or music/club.mp3) next to the page,
+ * If a file exists at music/theme.m4a|mp3 (or music/club.m4a|mp3) next to the page,
  * it is used instead, so you can drop in a track you have the rights to.
  */
 
@@ -87,12 +87,26 @@ export class Music {
   private async probeFiles(): Promise<void> {
     if (this.probed || !this.ctx || !this.out) return;
     this.probed = true;
+    const candidates: Record<'city' | 'club', string[]> = {
+      city: ['music/theme.mp3', 'music/theme.m4a'],
+      club: ['music/club.mp3', 'music/club.m4a'],
+    };
     for (const m of ['city', 'club'] as const) {
-      const url = m === 'city' ? 'music/theme.mp3' : 'music/club.mp3';
+      let url: string | null = null;
+      for (const u of candidates[m]) {
+        try {
+          const r = await fetch(u, { method: 'HEAD' });
+          const type = r.headers.get('content-type') ?? '';
+          if (r.ok && !type.includes('html')) {
+            url = u;
+            break;
+          }
+        } catch {
+          /* try the next one */
+        }
+      }
+      if (!url) continue;
       try {
-        const r = await fetch(url, { method: 'HEAD' });
-        const type = r.headers.get('content-type') ?? '';
-        if (!r.ok || type.includes('html')) continue;
         const el = new window.Audio(url);
         el.loop = true;
         el.crossOrigin = 'anonymous';
@@ -152,7 +166,8 @@ export class Music {
       void this.userTrack.play().catch(() => {});
       return;
     }
-    const custom = this.file[mode];
+    // The shipped theme plays everywhere unless a separate club track exists.
+    const custom = this.file[mode] ?? this.file.city;
     if (custom) {
       void custom.play().catch(() => {});
       return;

@@ -55,7 +55,9 @@ Changan UNI SUVs and green-and-white Corolla cabs.
 
 ## Music
 
-The game plays an original Afrobeats soundtrack, synthesized live (amapiano inside the club). Use the
+The soundtrack is **"How Far" (feat. Ayjay Bobo)**, shipped at `public/music/theme.mp3` and played everywhere,
+including inside the club (add `public/music/club.mp3` to give the club its own track). If the file is
+missing, the game falls back to an original synthesized Afrobeats/amapiano groove. Use the
 speaker button (or **N**) to mute/unmute. To play your own song: **Settings → Your music → Choose song…**. It's
 stored on your device only. To ship a track with the game (only if you have the rights), put it at
 `public/music/theme.mp3` (and optionally `public/music/club.mp3`).
