@@ -150,6 +150,21 @@ export class Music {
     this.start(m);
   }
 
+  /** Retry playback (e.g. after the browser blocked autoplay until a gesture). */
+  retry(): void {
+    if (this.mode === 'off') return;
+    const m = this.mode;
+    this.mode = 'off';
+    this.start(m);
+  }
+
+  /** Is the soundtrack actually playing right now? */
+  get playing(): boolean {
+    const el = this.userTrack ?? this.file.city ?? null;
+    if (el) return !el.paused;
+    return this.timer !== 0;
+  }
+
   setMode(mode: MusicMode): void {
     if (mode === this.mode) return;
     this.start(mode);

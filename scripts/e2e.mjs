@@ -328,6 +328,29 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await ctx.close();
 }
 
+// Sound is on by default, even if a previous session muted it.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1000, height: 640 } });
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem('abuja-life-save-v1', JSON.stringify({ version: 1, settings: { muted: true }, pos: { x: -704, z: -236.6, heading: 1.57 } }));
+    } catch {}
+  });
+  const page = await ctx.newPage();
+  await boot(page);
+  await sleep(1500);
+  check('sound: starts unmuted even after a muted session', await G(page, () => window.__abuja.save.settings.muted === false && !document.getElementById('mute').classList.contains('muted')));
+  const pre = await G(page, () => ({ running: window.__abuja.audio.running, playing: window.__abuja.audio.music.playing }));
+  const hintShown = await page.isVisible('#soundhint');
+  check('sound: hint shows only while audio is blocked', hintShown === !(pre.running && pre.playing), `autoplay=${pre.running && pre.playing}, hint=${hintShown}`);
+  await page.mouse.click(500, 600);
+  await sleep(2500);
+  const music = await G(page, () => ({ running: window.__abuja.audio.running, playing: window.__abuja.audio.music.playing, src: window.__abuja.audio.music.file?.city?.src ?? null }));
+  check('sound: first click starts the soundtrack', music.running && music.playing, JSON.stringify(music));
+  check('sound: hint hides once music plays', !(await page.isVisible('#soundhint')));
+  await ctx.close();
+}
+
 // Portrait phone shows rotate hint.
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

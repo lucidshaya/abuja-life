@@ -96,7 +96,8 @@ export function parseSave(raw: string | null): SaveData | null {
       showHints: s.showHints !== false,
       volume: Math.min(1, Math.max(0, num(s.volume, 0.6))),
       musicVolume: Math.min(1, Math.max(0, num(s.musicVolume, 0.5))),
-      muted: !!s.muted,
+      // Sound is always on when the game starts; mute only lasts for the session.
+      muted: false,
       bindings: typeof s.bindings === 'object' && s.bindings ? s.bindings : {},
     },
   };

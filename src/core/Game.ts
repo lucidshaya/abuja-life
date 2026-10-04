@@ -166,6 +166,10 @@ export class Game {
     this.player = new PlayerController(SPAWN.x, SPAWN.z, SPAWN.heading, this.playerChar);
     this.setupUi(city.buildings);
     this.applySettings(this.save.settings);
+    // Try to start the soundtrack straight away (works where the browser allows autoplay).
+    this.audio.unlock();
+    this.audio.music.setMode('city');
+    window.setInterval(() => this.syncSoundHint(), 1000);
     void loadTrack().then((t) => {
       if (t) {
         this.audio.music.setUserTrack(t.file, t.name);
@@ -303,12 +307,15 @@ export class Game {
       this.hud.device = d;
       this.refreshTouch();
     };
+    // Sound is on by default. Browsers only allow audio after the first tap/click/key,
+    // so start (or retry) the music on the very first interaction anywhere.
     const unlock = () => {
       this.audio.unlock();
-      if (this.audio.music.mode === 'off') this.audio.music.setMode('city');
+      if (this.audio.music.mode === 'off') this.audio.music.setMode(this.indoor?.music ?? 'city');
+      else if (!this.audio.music.playing) this.audio.music.retry();
+      window.setTimeout(() => this.syncSoundHint(), 300);
     };
-    window.addEventListener('pointerdown', unlock);
-    window.addEventListener('keydown', unlock);
+    for (const ev of ['pointerdown', 'keydown', 'touchstart', 'click'] as const) window.addEventListener(ev, unlock, { passive: true });
     this.canvas.addEventListener('click', () => {
       if (this.state === 'play' && this.input.device !== 'touch') this.input.requestPointerLock();
     });
@@ -573,6 +580,14 @@ export class Game {
     if (!this.save.settings.muted && this.audio.music.mode === 'off') this.audio.music.setMode(this.indoor?.music ?? 'city');
     this.syncMute();
     this.persist();
+  }
+
+  /** "Tap anywhere for sound" pill: visible on menus until the browser lets audio play. */
+  private syncSoundHint(): void {
+    const el = document.getElementById('soundhint');
+    if (!el) return;
+    const menuish = this.state === 'menu' || this.state === 'travel' || this.state === 'customize' || this.state === 'loading';
+    show(el, menuish && !this.save.settings.muted && !(this.audio.running && this.audio.music.playing));
   }
 
   private syncMute(): void {

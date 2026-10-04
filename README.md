@@ -69,6 +69,10 @@ Changan UNI SUVs and green-and-white Corolla cabs.
 
 ## Music
 
+Sound is **on by default** every time the game starts (mute with the speaker button or **N** lasts only for that
+session). Browsers only allow audio after your first tap, click or key press, so the music kicks in then. A
+"Tap anywhere for sound" hint shows on the menu until it does.
+
 The soundtrack is **"How Far" (feat. Ayjay Bobo)**, shipped at `public/music/theme.mp3` and played everywhere,
 including inside the club (add `public/music/club.mp3` to give the club its own track). If the file is
 missing, the game falls back to an original synthesized Afrobeats/amapiano groove. Use the

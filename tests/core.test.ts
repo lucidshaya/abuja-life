@@ -76,6 +76,12 @@ describe('Save', () => {
     expect(partial.character.name).toBeTruthy();
   });
 
+  it('always starts with sound on, even if a previous session muted it', () => {
+    const s = newSave();
+    s.settings.muted = true;
+    expect(parseSave(JSON.stringify(s))!.settings.muted).toBe(false);
+  });
+
   it('returns null when storage throws', () => {
     const bad: KV = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => {} };
     expect(loadSave(bad)).toBeNull();

@@ -14,6 +14,11 @@ export class Audio {
   volume = 0.6;
 
   /** Must be called from a user gesture. */
+  /** True once the browser lets audio play (after the first tap/click/key). */
+  get running(): boolean {
+    return !!this.ctx && this.ctx.state === 'running';
+  }
+
   unlock(): void {
     if (this.ctx) {
       if (this.ctx.state === 'suspended') void this.ctx.resume();
