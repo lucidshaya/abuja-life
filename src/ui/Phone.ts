@@ -1,5 +1,7 @@
 import { BILLS, TRANSFER_FEE, unlockedContacts, type Contact, type Mail, type Msg, type PhoneState } from '../phone/PhoneData';
 import { dayLabel, formatClock } from '../world/DayNight';
+import type { Social } from '../online/Social';
+import type { PlayerRef } from '../online';
 import { $, h, naira, show } from './dom';
 
 export interface PhoneHost {
@@ -13,6 +15,9 @@ export interface PhoneHost {
   nextTrack: () => void;
   /** "⚡ 12 kWh left • Service charge: paid" */
   homeStatus: () => string;
+  social: () => Social | null;
+  /** Send OPay money to another player by @username. Returns an error or null. */
+  sendToPlayer: (username: string, amount: number, note: string) => Promise<string | null>;
   muted: () => boolean;
   musicVolume: () => number;
   quality: () => string;
@@ -36,7 +41,7 @@ export interface PhoneHost {
   click: () => void;
 }
 
-type Screen = 'wardrobe' | 'home' | 'bank' | 'transfer' | 'sendany' | 'request' | 'bills' | 'mail' | 'mailview' | 'messages' | 'thread' | 'contacts' | 'call' | 'music' | 'maps' | 'settings';
+type Screen = 'wardrobe' | 'chats' | 'chat' | 'toplayer' | 'home' | 'bank' | 'transfer' | 'sendany' | 'request' | 'bills' | 'mail' | 'mailview' | 'messages' | 'thread' | 'contacts' | 'call' | 'music' | 'maps' | 'settings';
 
 const WALLPAPERS = [
   'linear-gradient(160deg, #0f8a4b 0%, #08321d 60%, #041a0f 100%)',
@@ -49,6 +54,7 @@ const APPS: { id: Screen; name: string; color: string; glyph: string }[] = [
   { id: 'bank', name: 'OPay', color: '#16b464', glyph: '₦' },
   { id: 'messages', name: 'Messages', color: '#2a9df4', glyph: '💬' },
   { id: 'mail', name: 'Mail', color: '#d93b30', glyph: '✉' },
+  { id: 'chats', name: 'Chats', color: '#1faa59', glyph: '💭' },
   { id: 'contacts', name: 'Contacts', color: '#f2a516', glyph: '☎' },
   { id: 'music', name: 'Music', color: '#e8364f', glyph: '♫' },
   { id: 'maps', name: 'Maps', color: '#0f8a4b', glyph: '⌖' },
@@ -69,6 +75,8 @@ export class Phone {
   private calling: Contact | null = null;
   private mailOpen: Mail | null = null;
   private requestFrom: Contact | null = null;
+  private chatWith: PlayerRef | null = null;
+  private sendTo = '';
   private toast = '';
   onClose: () => void = () => {};
 
@@ -110,7 +118,7 @@ export class Phone {
 
   /** Back button / Esc: go up one level, or close from home. */
   back(): void {
-    const up: Partial<Record<Screen, Screen>> = { bank: 'home', transfer: 'bank', sendany: 'bank', request: 'bank', bills: 'bank', mail: 'home', mailview: 'mail', messages: 'home', thread: 'messages', contacts: 'home', call: 'contacts', music: 'home', maps: 'home', settings: 'home' };
+    const up: Partial<Record<Screen, Screen>> = { chats: 'home', chat: 'chats', toplayer: 'bank', bank: 'home', transfer: 'bank', sendany: 'bank', request: 'bank', bills: 'bank', mail: 'home', mailview: 'mail', messages: 'home', thread: 'messages', contacts: 'home', call: 'contacts', music: 'home', maps: 'home', settings: 'home' };
     const to = up[this.screen];
     if (to) this.go(to);
     else this.close();
@@ -156,6 +164,9 @@ export class Phone {
       case 'sendany': return this.renderSendAny(b);
       case 'request': return this.renderRequest(b);
       case 'mail': return this.renderMail(b);
+      case 'chats': return this.renderChats(b);
+      case 'chat': return this.renderChat(b);
+      case 'toplayer': return this.renderToPlayer(b);
       case 'mailview': return this.renderMailView(b);
       case 'bills': return this.renderBills(b);
       case 'messages': return this.renderMessages(b);
@@ -175,7 +186,7 @@ export class Phone {
       h('div.ph-clock', {}, h('div.ph-time', { text: formatClock(this.host.hour()) }), h('div.ph-date', { text: `${dayLabel(this.host.day())} • Abuja, FCT` })),
       h('div.ph-grid', {}, ...APPS.map((a) =>
         h('button.ph-app', { type: 'button', onclick: () => (a.id === 'wardrobe' ? (this.host.click(), this.close(), this.host.openWardrobe()) : this.go(a.id)) },
-          h('span.ph-icon', { style: `background:${a.color}`, text: a.glyph }, a.id === 'messages' && unread ? h('span.ph-badge', { text: String(unread) }) : a.id === 'mail' && unreadMail ? h('span.ph-badge', { text: String(unreadMail) }) : null),
+          h('span.ph-icon', { style: `background:${a.color}`, text: a.glyph }, a.id === 'messages' && unread ? h('span.ph-badge', { text: String(unread) }) : a.id === 'mail' && unreadMail ? h('span.ph-badge', { text: String(unreadMail) }) : a.id === 'chats' && (this.host.social()?.unreadTotal ?? 0) ? h('span.ph-badge', { text: String(this.host.social()!.unreadTotal) }) : null),
           h('span.ph-appname', { text: a.name }),
         ))),
       h('div.ph-widget.home', {}, h('span', { text: '🏠 Home' }), h('b.small', { text: this.host.homeStatus() })),
@@ -196,6 +207,7 @@ export class Phone {
       ),
       h('div.bk-actions', {},
         h('button.bk-act', { type: 'button', onclick: () => this.go('transfer') }, h('span', { text: '↗' }), 'To contacts'),
+        h('button.bk-act', { type: 'button', onclick: () => { this.sendTo = ''; this.go('toplayer'); } }, h('span', { text: '🎮' }), 'To a player'),
         h('button.bk-act', { type: 'button', onclick: () => this.go('sendany') }, h('span', { text: '🏦' }), 'To any account'),
         h('button.bk-act', { type: 'button', onclick: () => { this.requestFrom = null; this.go('request'); } }, h('span', { text: '↙' }), 'Request money'),
         h('button.bk-act', { type: 'button', onclick: () => this.go('bills') }, h('span', { text: '💡' }), 'Airtime & Bills'),
@@ -242,6 +254,121 @@ export class Phone {
         }, naira(a)))),
       h('button.ph-btn.ghost', { type: 'button', onclick: () => { this.transferTo = null; this.render(); } }, 'Choose someone else'),
     );
+  }
+
+  /** Message another player (or open a chat with them) by @username. */
+  openChatWith(p: PlayerRef): void {
+    this.chatWith = p;
+    this.go('chat');
+  }
+
+  private renderChats(b: HTMLElement): void {
+    const social = this.host.social();
+    b.append(this.header('Chats', 'home'));
+    if (!social?.live) {
+      b.append(h('div.ph-empty', { text: 'Player chat turns on when the game server is live.' }));
+      return;
+    }
+    b.append(h('div.ml-addr', {}, h('span', { text: `You are @${social.username ?? ''}` }), h('span.ml-role', { text: `🟢 ${social.online} online` })));
+    const q = h('input.ph-input', { type: 'text', placeholder: 'Find a player: @username', maxlength: 17, autocapitalize: 'none', spellcheck: 'false', 'aria-label': 'Find a player' }) as HTMLInputElement;
+    q.addEventListener('keydown', (e) => e.stopPropagation());
+    const status = h('div.ch-status');
+    const go = h('button.ph-btn', { type: 'submit' }, 'Chat');
+    const form = h('form.ch-find', {}, q, go);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      this.host.click();
+      status.textContent = 'Searching…';
+      const p = await social.find(q.value);
+      if (!p) status.textContent = 'No player with that username.';
+      else if (p.id === social.me?.id) status.textContent = 'Na you be that 😄';
+      else this.openChatWith(p);
+    });
+    const list = h('div.ct-list', {}, h('div.ph-empty', { text: 'Loading chats…' }));
+    b.append(form, status, list);
+    void social.conversations().then((convs) => {
+      if (this.screen !== 'chats') return;
+      list.innerHTML = '';
+      if (!convs.length) list.append(h('div.ph-empty', { text: 'No chats yet. Find a player by their @username to start.' }));
+      for (const c of convs) {
+        const n = social.unreadFrom(c.with.id);
+        list.append(h('button.ms-row', { type: 'button', onclick: () => this.openChatWith(c.with) },
+          h('span.ct-av', { style: `background:${colorFor(c.with.username)}`, text: c.with.username.slice(0, 2).toUpperCase() }),
+          h('span.ms-mid', {}, h('span.ms-from', { text: '@' + c.with.username }), h('span.ms-prev', { text: (c.last.fromId === social.me?.id ? 'You: ' : '') + c.last.body })),
+          n ? h('span.ph-badge.inline', { text: String(n) }) : null,
+        ));
+      }
+    });
+  }
+
+  private renderChat(b: HTMLElement): void {
+    const social = this.host.social();
+    const p = this.chatWith;
+    if (!social || !p) return this.renderChats(b);
+    social.markRead(p.id);
+    const list = h('div.th-list', {}, h('div.ph-empty', { text: 'Loading…' }));
+    const box = h('input.ph-input', { type: 'text', placeholder: `Message @${p.username}`, maxlength: 300, 'aria-label': 'Message' }) as HTMLInputElement;
+    box.addEventListener('keydown', (e) => e.stopPropagation());
+    const status = h('div.ch-status');
+    const send = h('button.ph-btn', { type: 'submit' }, 'Send');
+    const form = h('form.ch-send', {}, box, send);
+    const draw = (msgs: { fromId: string; body: string; at: number }[]) => {
+      list.innerHTML = '';
+      if (!msgs.length) list.append(h('div.ph-empty', { text: `Say hi to @${p.username} 👋🏾` }));
+      for (const m of msgs) {
+        const mine = m.fromId === social.me?.id;
+        list.append(h('div.th-bubble' + (mine ? '.mine' : '.them'), {}, h('div', { text: m.body }), h('div.th-time', { text: new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })));
+      }
+      list.scrollTop = list.scrollHeight;
+    };
+    const load = () => social.history(p.id).then((msgs) => {
+      if (this.screen === 'chat' && this.chatWith === p) draw(msgs);
+    });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = box.value;
+      box.value = '';
+      const err = await social.send(p.id, text);
+      status.textContent = err ?? '';
+      if (err) box.value = text;
+      void load();
+    });
+    const money = h('button.ch-money', { type: 'button', onclick: () => { this.sendTo = p.username; this.go('toplayer'); } }, '₦ Send money');
+    b.append(this.header('@' + p.username, 'chats'), money, list, status, form);
+    void load();
+  }
+
+  /** New chat message arrived: refresh the open thread. */
+  chatArrived(fromId: string): void {
+    if (!this.open) return;
+    if (this.screen === 'chat' && this.chatWith?.id === fromId) this.render();
+    else if (this.screen === 'chats' || this.screen === 'home') this.render();
+  }
+
+  private renderToPlayer(b: HTMLElement): void {
+    const social = this.host.social();
+    b.append(this.header('Send to a player', 'bank'), this.toastEl());
+    if (!social?.live) {
+      b.append(h('div.ph-empty', { text: 'Player transfers turn on when the game server is live.' }));
+      return;
+    }
+    const to = h('input.ph-input', { type: 'text', placeholder: '@username', maxlength: 17, autocapitalize: 'none', spellcheck: 'false', value: this.sendTo, 'aria-label': 'Player username' }) as HTMLInputElement;
+    const amt = h('input.ph-input', { type: 'text', inputmode: 'numeric', placeholder: 'Amount (₦)', maxlength: 9, 'aria-label': 'Amount' }) as HTMLInputElement;
+    const note = h('input.ph-input', { type: 'text', placeholder: 'Note (optional)', maxlength: 80, 'aria-label': 'Note' }) as HTMLInputElement;
+    for (const el of [to, amt, note]) el.addEventListener('keydown', (e) => e.stopPropagation());
+    amt.addEventListener('input', () => (amt.value = amt.value.replace(/\D/g, '')));
+    const quick = h('div.tf-amts', {}, ...[1000, 5000, 20000, 100000].map((a) => h('button.tf-amt', { type: 'button', onclick: () => { amt.value = String(a); } }, naira(a))));
+    const send = h('button.ph-btn', { type: 'button' }, 'Send money ▸') as HTMLButtonElement;
+    send.addEventListener('click', async () => {
+      this.host.click();
+      send.disabled = true;
+      send.textContent = 'Sending…';
+      const err = await this.host.sendToPlayer(to.value, parseInt(amt.value, 10) || 0, note.value);
+      this.toast = err ?? `Sent ${naira(parseInt(amt.value, 10) || 0)} to @${to.value.replace(/^@/, '').toLowerCase()} ✅`;
+      if (!err) this.screen = 'bank';
+      this.render();
+    });
+    b.append(h('div.sa-form', {}, to, amt, quick, note, h('div.bk-txd', { text: `Balance: ${naira(this.host.money())} • Players get it instantly (free)` }), send));
   }
 
   private renderSendAny(b: HTMLElement): void {

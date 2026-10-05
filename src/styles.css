@@ -733,3 +733,43 @@ body.touch-mode .stick-hint { width: 96px; height: 96px; bottom: calc(36px + var
   .ph-icon { width: 48px; height: 48px; font-size: 22px; border-radius: 13px; }
   .bk-bal { font-size: 26px; }
 }
+
+/* ---------- Sign up ---------- */
+#auth { z-index: 37; background: linear-gradient(90deg, rgba(4, 14, 8, 0.9), rgba(4, 14, 8, 0.55)); overflow-y: auto; touch-action: pan-y; }
+.au-card { width: min(420px, 100%); margin: auto; background: var(--glass-2); border: 1px solid var(--line); border-radius: 22px; padding: 22px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+.logo.small .l1, .logo.small .l2 { font-size: 42px; }
+.au-title { font: 800 22px var(--head); color: #fff; margin: 12px 0 4px; }
+.au-sub { color: #cfe7d8; font-size: 14px; line-height: 1.4; margin-bottom: 8px; }
+.au-form { display: flex; flex-direction: column; gap: 8px; }
+.au-label { font: 700 12px var(--body); text-transform: uppercase; letter-spacing: 0.08em; color: #9fe8bd; margin-top: 4px; }
+.au-input { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font: 600 16px var(--body); background: rgba(255, 255, 255, 0.95); color: var(--ink); user-select: text; -webkit-user-select: text; touch-action: auto; }
+.au-at { display: flex; align-items: center; gap: 6px; }
+.au-at span { font: 800 18px var(--head); color: var(--gold); }
+.au-hint { font-size: 12.5px; opacity: 0.7; }
+.au-err { min-height: 18px; color: #ffb3aa; font-weight: 700; font-size: 13.5px; }
+.au-go { text-align: center; margin-top: 2px; }
+.au-links { display: flex; justify-content: space-between; }
+.au-link { background: none; border: none; color: #9fe8bd; font: 700 13px var(--body); text-decoration: underline; padding: 6px 0; cursor: pointer; }
+@media (max-height: 520px) { .au-card { padding: 14px 16px; } .logo.small { display: none; } .au-title { margin-top: 0; font-size: 18px; } }
+
+/* Phone: player chats */
+.ch-find, .ch-send { display: flex; gap: 6px; }
+.ch-find .ph-input, .ch-send .ph-input { flex: 1; min-width: 0; }
+.ch-find .ph-btn, .ch-send .ph-btn { padding: 10px 14px; }
+.ch-status { min-height: 16px; font-size: 12.5px; font-weight: 700; color: #ffd76a; }
+.ch-money { align-self: flex-start; border: none; border-radius: 99px; padding: 6px 12px; background: #16b464; color: #fff; font: 800 13px var(--body); }
+.th-bubble.mine { align-self: flex-end; background: #1faa59; color: #fff; }
+.th-bubble.them { align-self: flex-start; }
+.ph-screen[data-screen='toplayer'] { background: linear-gradient(180deg, #0b7d45 0%, #0b5c33 30%, #f3f5f4 30.1%) !important; }
+
+/* ---------- Online count + account ---------- */
+.online-row, #onlinepill { font: 700 11.5px var(--body); color: #c9ffdc; display: flex; align-items: center; gap: 6px; }
+.online-row::before, #onlinepill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; box-shadow: 0 0 0 0 rgba(61, 220, 132, 0.7); animation: livePulse 1.8s infinite; }
+@keyframes livePulse { 70% { box-shadow: 0 0 0 7px rgba(61, 220, 132, 0); } 100% { box-shadow: 0 0 0 0 rgba(61, 220, 132, 0); } }
+.online-row { margin-top: 3px; }
+#onlinepill { position: fixed; z-index: 38; left: calc(14px + var(--safe-l)); bottom: calc(12px + var(--safe-b)); background: var(--glass); border: 1px solid var(--line); padding: 6px 12px; border-radius: 99px; }
+#onlinepill, #account { display: none !important; }
+body.in-menu #onlinepill { display: flex !important; }
+body.in-menu #account:not(.hidden) { display: flex !important; }
+#account { position: fixed; z-index: 38; right: calc(14px + var(--safe-r)); bottom: calc(12px + var(--safe-b)); display: flex; align-items: center; gap: 8px; background: var(--glass); border: 1px solid var(--line); padding: 5px 6px 5px 12px; border-radius: 99px; }
+.ac-name { font: 800 14px var(--head); color: var(--gold); }

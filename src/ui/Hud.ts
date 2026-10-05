@@ -11,6 +11,7 @@ export class Hud {
   private clout = h('span.clout');
   private clock = h('span.clock');
   private role = h('div.role-label.hidden');
+  private online = h('div.online-row', { text: '10 players online' });
   private district = h('div.district-label');
   private prompt = h('div.prompt.hidden');
   private toast = h('div.toast.hidden');
@@ -28,7 +29,7 @@ export class Hud {
   bindings!: Bindings;
 
   constructor() {
-    const stats = h('div.stats', {}, this.role, h('div.bal-label', { text: 'OPay account balance' }), h('div.row', {}, this.money), h('div.row', {}, this.clout, this.clock), this.district);
+    const stats = h('div.stats', {}, this.role, h('div.bal-label', { text: 'OPay account balance' }), h('div.row', {}, this.money), h('div.row', {}, this.clout, this.clock), this.district, this.online);
     this.root.append(stats, h('div.minimap-wrap', {}, this.minimapCanvas), this.toast, this.prompt, this.feed, this.hints, this.speedo, this.banner);
     this.banner.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -67,6 +68,10 @@ export class Hud {
   resetDeltas(): void {
     this.lastMoney = NaN;
     this.lastClout = NaN;
+  }
+
+  setOnline(n: number): void {
+    this.online.textContent = `${n} players online`;
   }
 
   setRole(text: string | null, color = '#f2c230'): void {

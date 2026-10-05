@@ -1,5 +1,7 @@
-# Deploys the game to GitHub Pages. Run it manually from the Actions tab
-# after enabling Pages (Settings → Pages → Source: GitHub Actions).
+# Optional backup host: deploys to GitHub Pages when run manually from the Actions tab.
+# (The main host is Vercel, which deploys automatically on every push.)
+# One-time setup: Settings → Pages → Source: GitHub Actions, and for online play add
+# Settings → Secrets and variables → Actions → Variables: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.
 name: Abuja Life — deploy to Pages
 
 on:
@@ -28,7 +30,11 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - run: npm test
       - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

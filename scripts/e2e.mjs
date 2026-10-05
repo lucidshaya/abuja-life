@@ -29,6 +29,19 @@ async function boot(page) {
   return errors;
 }
 const G = (page, fn, arg) => page.evaluate(fn, arg);
+/** Sign-up screen: email + username (+ code on the test server). */
+async function signUp(page, email, username, code = null, tap = false) {
+  await page.waitForSelector('#auth .au-card', { timeout: 15000 });
+  await page.fill('#auth input[type=email]', email);
+  await page.fill('#auth input[autocomplete=username]', username);
+  await (tap ? page.tap('#auth .au-go') : page.click('#auth .au-go'));
+  if (code) {
+    await page.waitForSelector('#auth input[autocomplete=one-time-code]', { timeout: 8000 });
+    await page.fill('#auth input[autocomplete=one-time-code]', code);
+    await (tap ? page.tap('#auth .au-go') : page.click('#auth .au-go'));
+  }
+  await page.waitForSelector('#menu:not(.hidden)', { timeout: 15000 });
+}
 const pos = (page) => G(page, () => { const g = window.__abuja; const p = g.car ? g.car : g.player; return { x: p.x, z: p.z, state: g.state, inCar: !!g.car }; });
 /** Press a key one frame at a time until cond() holds (headless GL can be ~5 fps). */
 async function pressUntil(page, key, cond, tries = 8) {
@@ -46,8 +59,18 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const page = await ctx.newPage();
   const errors = await boot(page);
+  check('auth: sign-up screen before playing', await page.isVisible('#auth .au-card'));
+  await page.fill('#auth input[type=email]', 'bad-email');
+  await page.fill('#auth input[autocomplete=username]', 'Chidi Okafor');
+  await page.click('#auth .au-go');
+  await sleep(200);
+  check('auth: rejects a bad email', ((await page.textContent('.au-err')) ?? '').includes('email'));
+  await page.screenshot({ path: `${OUT}/00-signup.png` });
+  await signUp(page, 'chidi@example.com', 'chidi_abj');
   await page.screenshot({ path: `${OUT}/01-menu.png` });
   check('desktop: menu visible', await page.isVisible('#menu'));
+  check('menu: shows your @username', ((await page.textContent('#account')) ?? '').includes('@chidi_abj'));
+  check('menu: players online starts at 10', ((await page.textContent('#onlinepill')) ?? '').startsWith('10 '));
   await page.click('text=New Life');
   await sleep(500);
   check('desktop: role picker opens first', await page.isVisible('#rolepicker'));
@@ -499,6 +522,7 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   const errors = await boot(page);
+  await signUp(page, 'ada@example.com', 'ada_wuse', null, true);
   check('mobile: touch mode detected', await G(page, () => window.__abuja.input.device === 'touch'));
   await page.tap('text=New Life');
   await sleep(500);
@@ -595,6 +619,106 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   const music = await G(page, () => ({ running: window.__abuja.audio.running, playing: window.__abuja.audio.music.playing, src: window.__abuja.audio.music.file?.city?.src ?? null }));
   check('sound: first click starts the soundtrack', music.running && music.playing, JSON.stringify(music));
   check('sound: hint hides once music plays', !(await page.isVisible('#soundhint')));
+  await ctx.close();
+}
+
+
+// Two players (test server shared between tabs): chat + send money.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1000, height: 640 } });
+  const a = await ctx.newPage();
+  const b = await ctx.newPage();
+  const errs = [];
+  for (const p of [a, b]) p.on('pageerror', (e) => errs.push(String(e)));
+  for (const p of [a, b]) {
+    await p.goto(URL + '?mock=1');
+    await p.waitForFunction(() => document.getElementById('loading')?.classList.contains('hidden'), null, { timeout: 120000 });
+  }
+  await signUp(a, 'tunde@example.com', 'tunde');
+  await signUp(b, 'amaka@example.com', 'tunde').catch(() => {});
+  check('online: taken username is refused', ((await b.textContent('.au-err')) ?? '').includes('taken'));
+  await b.fill('#auth input[autocomplete=username]', 'amaka');
+  await b.click('#auth .au-go');
+  await b.waitForSelector('#menu:not(.hidden)', { timeout: 15000 });
+  await sleep(4500);
+  check('online: live count = 10 + other real players', ((await a.textContent('#onlinepill')) ?? '').startsWith('11 '), (await a.textContent('#onlinepill')) ?? '');
+  const startLife = async (p, role) => {
+    await p.click('text=New Life');
+    await p.click(`.rp-card[data-role="${role}"]`);
+    await p.click('.rp-go');
+    await p.click('text=Start Life in Abuja');
+    await sleep(500);
+    if (await p.isVisible('#tutorial')) for (let i = 0; i < 5; i++) { await p.click('.tu-next'); await sleep(150); }
+    await p.waitForSelector('#explore .ex-card', { timeout: 8000 }).catch(() => {});
+    if (await p.isVisible('#explore .ex-card')) await p.click('#explore >> text=I go waka first');
+    await sleep(500);
+  };
+  await startLife(a, 'techbro');
+  await startLife(b, 'student');
+  // A messages B.
+  await G(a, () => window.__abuja.openPhone('home'));
+  await a.click('.ph-app:has-text("Chats")');
+  await a.fill('.ch-find input', '@amaka');
+  await a.click('.ch-find .ph-btn');
+  await a.waitForSelector('.ch-send input', { timeout: 5000 });
+  await a.fill('.ch-send input', 'How far Amaka! Welcome to Abuja 🇳🇬');
+  await a.click('.ch-send .ph-btn');
+  await sleep(1200);
+  check('chat: B gets a notification badge', await G(b, () => window.__abuja.social.unreadTotal === 1));
+  await a.screenshot({ path: `${OUT}/50-chat-sent.png` });
+  await G(b, () => window.__abuja.openPhone('home'));
+  await b.click('.ph-app:has-text("Chats")');
+  await b.waitForSelector('.ms-row:has-text("@tunde")', { timeout: 5000 });
+  await b.click('.ms-row:has-text("@tunde")');
+  await sleep(600);
+  check('chat: B reads the message from @tunde', ((await b.textContent('.th-list')) ?? '').includes('How far Amaka'));
+  await b.screenshot({ path: `${OUT}/51-chat-received.png` });
+  // A sends B money.
+  const a0 = await G(a, () => window.__abuja.save.stats.money);
+  const b0 = await G(b, () => window.__abuja.save.stats.money);
+  await a.click('.ch-money');
+  await a.fill('.sa-form input >> nth=1', '20000');
+  await a.fill('.sa-form input >> nth=2', 'For transport');
+  await a.click('.sa-form .ph-btn');
+  await sleep(1500);
+  const a1 = await G(a, () => window.__abuja.save.stats.money);
+  const b1 = await G(b, () => window.__abuja.save.stats.money);
+  check('money: sender pays ₦20,000', a0 - a1 === 20000, `${a0} → ${a1}`);
+  check('money: receiver gets ₦20,000', b1 - b0 === 20000, `${b0} → ${b1}`);
+  // Refuse sending more than you have, and to yourself.
+  const tooMuch = await G(a, () => window.__abuja.phone['host'].sendToPlayer('amaka', 999999999, ''));
+  check('money: refuses more than your balance or the limit', typeof tooMuch === 'string', String(tooMuch));
+  const self = await G(a, () => window.__abuja.phone['host'].sendToPlayer('tunde', 100, ''));
+  check('money: refuses sending to yourself', typeof self === 'string', String(self));
+  const ghost = await G(a, () => window.__abuja.phone['host'].sendToPlayer('nobody_here', 100, ''));
+  check('money: unknown username refused', typeof ghost === 'string', String(ghost));
+  // Log out and back in with just the email: same account, same save, on any device.
+  await G(b, () => window.__abuja.phone.close());
+  await sleep(400);
+  await pressUntil(b, 'Escape', () => b.isVisible('#pause'), 4);
+  await b.click('#pause >> text=Save & Quit to Menu');
+  await b.waitForSelector('#account:not(.hidden)', { timeout: 8000 });
+  await b.click('#account .btn');
+  await b.waitForSelector('#auth .au-card', { timeout: 8000 });
+  await sleep(300);
+  check('account: signing out clears this device', await G(b, () => localStorage.getItem('abuja-life-save-v1') === null || !JSON.parse(localStorage.getItem('abuja-life-save-v1')).pos));
+  await b.fill('#auth input[type=email]', 'amaka@example.com');
+  await b.click('#auth .au-go');
+  await b.waitForSelector('#menu:not(.hidden)', { timeout: 15000 });
+  await sleep(500);
+  const back = await G(b, () => ({ user: window.__abuja.social.username, money: window.__abuja.save.stats.money, role: window.__abuja.save.role, cont: !document.querySelector('#menu .btn.hidden') }));
+  check('account: email alone logs back in to the same account', back.user === 'amaka', JSON.stringify(back));
+  check('account: progress is attached to the email', back.money === b1 && back.role === 'student', JSON.stringify(back));
+  // A "new device" (fresh tab session) logging in with the same email gets the same account.
+  const c = await ctx.newPage();
+  await c.goto(URL + '?mock=1');
+  await c.waitForFunction(() => document.getElementById('loading')?.classList.contains('hidden'), null, { timeout: 120000 });
+  await c.waitForSelector('#auth .au-card', { timeout: 15000 });
+  await c.fill('#auth input[type=email]', 'TUNDE@example.com ');
+  await c.click('#auth .au-go');
+  await c.waitForSelector('#menu:not(.hidden)', { timeout: 15000 });
+  check('account: other device, same email → same @username', (await G(c, () => window.__abuja.social.username)) === 'tunde');
+  check('online: no page errors with two players', errs.length === 0, errs.join(' | '));
   await ctx.close();
 }
 

@@ -3,7 +3,7 @@ import { Audio } from './Audio';
 import { CollisionWorld, type Dynamic } from './Collision';
 import { Input, mergeBindings } from './Input';
 import { FpsSampler, TIERS, guessTier, isTouchDevice, lowerTier, type Tier } from './Quality';
-import { loadSave, newSave, writeSave, type SaveData, type Settings } from './Save';
+import { clearSave, loadSave, newSave, parseSave, writeSave, type SaveData, type Settings } from './Save';
 import { clamp } from './rng';
 import { EventSystem, applyEffects, linesFor, meets, type EventContext, type GameEvent, type Outcome } from '../events/EventSystem';
 import { EVENTS } from '../events/eventsData';
@@ -38,6 +38,9 @@ import { buildWorkspaces } from '../world/locations/Workspaces';
 import { HOUSE_MESHES, buildHouse } from '../world/locations/HouseInterior';
 import { HouseShop } from '../ui/HouseShop';
 import { seen, showExplore, showTutorial } from '../ui/Onboarding';
+import { AuthScreen } from '../ui/AuthScreen';
+import { createBackend, type Me } from '../online';
+import { Social } from '../online/Social';
 import { ESTATE, ESTATE_DUES, FURNITURE, TOKENS, homeDark, inEstate, newHome, powerOut, type Furniture, unitsFor, useUnits, weekOf, weeksOwed } from '../player/Home';
 import { TravelMenu, type TravelChoice, type TravelMode } from '../ui/TravelMenu';
 import { Phone } from '../ui/Phone';
@@ -121,7 +124,32 @@ export class Game {
     ...ABUJA2_QUICK.map((z) => (z.id === 'banex' ? { ...z, items: [...z.items, standBy('waza-plug', 'Waza plug (buy vapes)', '💨')] } : z)),
   ];
   private wasInEstate = false;
+  private wireSocial(): void {
+    const s = this.social;
+    s.onChange = () => {
+      this.syncAccount();
+      this.syncPhoneBadge();
+    };
+    s.onMessage = (m, from) => {
+      if (this.state === 'play' || this.state === 'phone') {
+        this.hud.push('Chats', '#1faa59', '💭', '@' + from, m.body.length > 90 ? m.body.slice(0, 88) + '…' : m.body);
+        this.audio.notify();
+        this.pingPhone();
+      }
+      this.phone?.chatArrived(m.fromId);
+    };
+    s.onMoney = (amount, from, note) => {
+      this.save.stats = applyEffects(this.save.stats, { money: amount });
+      this.addTx(`From @${from}`, amount);
+      this.addMsg('OPay', `Credit alert! +${naira(amount)} from @${from}${note ? ` — "${note}"` : ''}. Balance: ${naira(this.save.stats.money)}`, this.state === 'play' || this.state === 'phone');
+      this.audio.coin();
+      this.persist();
+    };
+  }
+
   private nearCarNow = false;
+  social!: Social;
+  private auth = new AuthScreen();
   private shop!: HouseShop;
   private furnitureSolid = new Set<string>();
   private emotes!: EmoteMenu;
@@ -232,8 +260,13 @@ export class Game {
     this.dayNight.update(18, new THREE.Vector3(), this.camera);
     this.renderer.compile(this.scene, this.camera);
     await nextFrame();
-    this.goMenu();
+    this.social = new Social(await createBackend());
+    this.wireSocial();
+    const me = await this.social.backend.session().catch(() => null);
     this.clock.start();
+    this.renderer.setAnimationLoop(() => this.tick());
+    if (me?.username) this.signedIn(me);
+    else this.showAuth(me);
     this.renderer.setAnimationLoop(() => this.tick());
     (window as unknown as { __abuja: Game }).__abuja = this;
   }
@@ -335,6 +368,23 @@ export class Game {
       trackName: () => this.audio.music.currentTrackName ?? 'Abuja Life Beats',
       nextTrack: () => this.audio.music.next(),
       homeStatus: () => this.homeStatus(),
+      social: () => this.social ?? null,
+      sendToPlayer: async (username, amount, note) => {
+        const to = await this.social.find(username);
+        const err = this.social.validateSend(to, amount, this.save.stats.money);
+        if (err || !to) return err ?? 'No player with that username.';
+        // Take the money first so it can't be spent twice; refund if the server says no.
+        const op = this.bankOp({ label: `To @${to.username}`, amount: -Math.floor(amount), clout: amount >= 100000 ? 1 : 0 });
+        if (op) return op;
+        const fail = await this.social.sendMoney(to, amount, note);
+        if (fail) {
+          this.save.stats = applyEffects(this.save.stats, { money: Math.floor(amount) });
+          this.addTx(`Refund (failed transfer to @${to.username})`, Math.floor(amount));
+          this.persist();
+          return fail;
+        }
+        return null;
+      },
       muted: () => this.save.settings.muted,
       musicVolume: () => this.save.settings.musicVolume,
       quality: () => this.save.settings.quality,
@@ -357,7 +407,7 @@ export class Game {
         }, 2500 + Math.random() * 2500);
         return `Request for ${naira(amount)} sent to ${c.name} ✅ Wait for their reply.`;
       },
-      email: () => playerEmail(this.save.character.name, this.role),
+      email: () => playerEmail(this.social?.username ?? this.save.character.name, this.role),
       roleName: () => this.role?.name ?? null,
       payBill: (id) => {
         const bill = BILLS.find((x) => x.id === id);
@@ -440,6 +490,12 @@ export class Game {
       }
       if (this.state === 'play') this.pause();
     });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && this.state !== 'menu' && this.state !== 'loading') {
+        this.persist();
+        this.pushCloud(true);
+      }
+    });
     $('rotate-dismiss').addEventListener('click', () => document.body.classList.add('rotate-ok'));
   }
 
@@ -458,6 +514,101 @@ export class Game {
     show($('map'), false);
     this.menus.showMain(loadSave() !== null && this.save.pos !== null);
     this.refreshTouch();
+    this.syncAccount();
+  }
+
+  // ---------------------------------------------------------- accounts
+  private showAuth(existing: Me | null): void {
+    if (this.phone?.open) this.phone.close();
+    this.shop?.close();
+    this.leaveCar(true);
+    this.state = 'menu';
+    this.unlockPointer();
+    this.menus.hideAll();
+    this.hud.setVisible(false);
+    this.refreshTouch();
+    this.auth.onClick = () => {
+      this.audio.unlock();
+      this.audio.click();
+    };
+    this.auth.open(this.social.backend, existing, (me) => this.signedIn(me));
+  }
+
+  private signedIn(me: Me): void {
+    this.social.me = me;
+    this.social.start();
+    void this.pullCloudSave(me).then(() => this.goMenu());
+  }
+
+  /** Your save lives on your account: log in on any device and it follows you. */
+  private async pullCloudSave(me: Me): Promise<void> {
+    const raw = await this.social.backend.loadCloudSave().catch(() => null);
+    const cloud = parseSave(raw);
+    const settings = this.save.settings;
+    if (cloud) {
+      this.save = cloud;
+    } else if (this.save.owner && this.save.owner !== me.id) {
+      // This device's save belongs to another account: start fresh.
+      this.save = newSave();
+    } else if (this.save.pos) {
+      // First login with progress already on this device: attach it to the account.
+      this.save.owner = me.id;
+      void this.social.backend.storeCloudSave(JSON.stringify(this.save)).catch(() => {});
+    }
+    this.save.settings = settings;
+    this.save.owner = me.id;
+    writeSave(this.save);
+  }
+
+  private cloudTimer = 0;
+  private cloudDirty = false;
+  /** Upload the save to the account (throttled; `now` forces it). */
+  private pushCloud(now = false): void {
+    if (!this.social?.me?.username || this.save.owner !== this.social.me.id) return;
+    this.cloudDirty = true;
+    if (!now && this.cloudTimer) return;
+    const go = () => {
+      this.cloudTimer = 0;
+      if (!this.cloudDirty) return;
+      this.cloudDirty = false;
+      void this.social.backend.storeCloudSave(JSON.stringify(this.save)).catch(() => (this.cloudDirty = true));
+    };
+    if (now) {
+      window.clearTimeout(this.cloudTimer);
+      go();
+    } else this.cloudTimer = window.setTimeout(go, 15000);
+  }
+
+  private async signOut(): Promise<void> {
+    this.persist();
+    this.pushCloud(true);
+    await this.social.signOut();
+    // Your progress stays on your account; clear it from this device.
+    const settings = this.save.settings;
+    clearSave();
+    this.save = newSave();
+    this.save.settings = settings;
+    this.showAuth(null);
+    this.syncAccount();
+  }
+
+  /** Account chip + live player count on the menus. */
+  private syncAccount(): void {
+    const el = $('account');
+    const name = this.social?.username;
+    show(el, !!name);
+    el.innerHTML = '';
+    if (name) {
+      const out = h('button.btn.small', { type: 'button' }, 'Sign out');
+      out.addEventListener('click', () => {
+        this.audio.click();
+        void this.signOut();
+      });
+      el.append(h('span.ac-name', { text: '@' + name }), out);
+    }
+    const n = this.social?.online ?? 10;
+    $('onlinepill').textContent = `${n} players online`;
+    this.hud.setOnline(n);
   }
 
   private newGame(): void {
@@ -468,6 +619,8 @@ export class Game {
     this.rolePicker.show((role) => {
       this.rolePicker.close();
       const base = upgradeCharacter({ ...this.save.character });
+      const uname = this.social?.username;
+      if (uname && (base.name === 'Chidi' || !base.name)) base.name = uname.charAt(0).toUpperCase() + uname.slice(1);
       const look = { ...role.look };
       const dressed: CharacterConfig = { ...base, ...look };
       this.customizer.open(dressed, 'new', (cfg) => {
@@ -485,6 +638,7 @@ export class Game {
     this.save = newSave(cfg);
     this.save.settings = settings;
     this.save.role = role.id;
+    this.save.owner = this.social?.me?.id ?? null;
     const bonus = STARTING_STATS[cfg.background];
     this.save.stats = { money: role.money + bonus.money, clout: role.clout + bonus.clout };
     this.save.lastSalaryDay = 1;
@@ -504,7 +658,7 @@ export class Game {
     if (bonus.money) this.addTx(`Gift from home (${cfg.background})`, bonus.money);
     this.addMsg('OPay', `Welcome to OPay, ${cfg.name}! Your account is ready with ${naira(this.save.stats.money)}. Spend wisely for Abuja 😉`, false);
     this.addMsg('Mummy ❤️', 'My child, you don reach Abuja? Call me when you settle. Love you!', false);
-    this.addMail('Abuja Life', `Welcome to Abuja, ${cfg.name}!`, `Your email address is ${playerEmail(cfg.name, role)}.\n\nYou are now a ${role.name}. ${role.blurb}\n\n${role.salary ? `Your pay of ${naira(role.salary)} lands in your OPay account every morning at 8am.` : 'You earn money by working — go to ' + role.workplace.name + ' and open the quick actions.'}\n\nPerk: ${role.perk}`, false);
+    this.addMail('Abuja Life', `Welcome to Abuja, ${cfg.name}!`, `Your email address is ${playerEmail(this.social?.username ?? cfg.name, role)}.\n\nYou are now a ${role.name}. ${role.blurb}\n\n${role.salary ? `Your pay of ${naira(role.salary)} lands in your OPay account every morning at 8am.` : 'You earn money by working — go to ' + role.workplace.name + ' and open the quick actions.'}\n\nPerk: ${role.perk}`, false);
     this.addMail(role.workplace.name, role.email.welcome.subject, role.email.welcome.body, false);
     this.addMail('Sunshine Court Estate', 'Welcome to your new house!', `Dear ${cfg.name},\n\nWelcome to ${ESTATE.name}, ${ESTATE.area}. Your house is the first one on the left after the gate.\n\n• Electricity is prepaid. Your meter has 20 units (about 3 days). Buy AEDC tokens at the meter or in OPay → Bills, or light go off.\n• Service charge is ${naira(ESTATE_DUES)} every week (Monday). Your first week is paid.\n\n— Mrs. Okon, Estate Manager`, false);
     // You wake up inside your own house.
@@ -646,7 +800,7 @@ export class Game {
 
   private syncPhoneBadge(): void {
     if (!this.phoneBtn) return;
-    const n = this.save.phone.messages.filter((m) => !m.read).length + this.save.phone.mail.filter((m) => !m.read).length;
+    const n = this.save.phone.messages.filter((m) => !m.read).length + this.save.phone.mail.filter((m) => !m.read).length + (this.social?.unreadTotal ?? 0);
     this.phoneBtn.dataset.badge = n ? String(n) : '';
     this.touchUi?.setPhoneBadge(n);
     // Bounce now and then while there's something unread (or until a new player opens the phone once).
@@ -883,6 +1037,7 @@ export class Game {
       this.rolePicker.show((role) => {
         this.rolePicker.close();
         this.save.role = role.id;
+    this.save.owner = this.social?.me?.id ?? null;
         this.save.lastSalaryDay = this.day;
         this.flags.add('role:' + role.id);
         this.addMail('Abuja Life', `You are now a ${role.name}`, `${role.blurb}\n\nYour email: ${playerEmail(this.save.character.name, role)}\nWorkplace: ${role.workplace.name}\nPerk: ${role.perk}`, false);
@@ -919,6 +1074,7 @@ export class Game {
     this.unlockPointer();
     this.menus.showPause();
     this.persist();
+    this.pushCloud(true);
     this.refreshTouch();
   }
 
@@ -1011,6 +1167,7 @@ export class Game {
     this.time += dt;
     this.input.update();
     document.body.classList.toggle('playing', this.state === 'play' || this.state === 'dialogue');
+    document.body.classList.toggle('in-menu', this.state === 'menu' && !this.menus.inSub);
     if (this.input.wasPressed('mute')) this.toggleMute();
     const playing = this.state === 'play';
     this.quick.root.style.display = playing ? '' : 'none';
@@ -1994,6 +2151,7 @@ export class Game {
     this.save.day = this.day;
     this.save.flags = [...this.flags];
     writeSave(this.save);
+    this.pushCloud();
   }
 }
 

@@ -179,9 +179,31 @@ npm run build && npx vite preview --port 4173 &
 npm run e2e                               # browser smoke test (needs Chromium; set CHROME=/path/to/chrome)
 ```
 
-## Deploying
+## Accounts & online play
 
-`.github/workflows/pages.yml` deploys to GitHub Pages. Enable Pages
-(Settings → Pages → Source: GitHub Actions), then run the workflow from the Actions tab.
+Players sign up with an **email + username** (no verification). The same email logs back into the same account on
+any device, and the whole game save (money, role, house, furniture, phone) is attached to it. Players can find each
+other by **@username** in the phone's **Chats** app, chat, and send OPay money (**OPay → To a player**). The menu and
+HUD show how many players are online.
+
+Without a server configured, accounts stay on the device and multiplayer is off. To turn on online play:
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. **SQL Editor → New query**: paste `supabase/schema.sql` and **Run**.
+3. **Authentication → Sign In / Providers → Email**: turn **off** "Confirm email".
+4. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
+5. Vercel project → **Settings → Environment Variables**: add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+   (all environments), then redeploy. (For local dev, put them in `.env.local`, see `.env.example`.)
+
+Because there's no email verification, anyone who knows a player's email can log into that account.
+
+## Deploying (Vercel)
+
+1. [vercel.com/new](https://vercel.com/new) → **Import** the `lucidshaya/abuja-life` GitHub repo. Settings come from
+   `vercel.json` (Vite, `npm test && npm run build`, output `dist`), so just press **Deploy**.
+2. Add the two Supabase environment variables (see above) and redeploy.
+3. Every push to the production branch (`main` by default) redeploys; other branches get preview links.
+
+`.github/workflows/pages.yml` can also deploy to GitHub Pages manually as a backup.
 
 Landmarks are stylized tributes. The ministry, mall and characters in the game are fictional.

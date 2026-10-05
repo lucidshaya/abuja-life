@@ -74,6 +74,11 @@ export class Menus {
     show(this.pause, true);
   }
 
+  /** Settings / help open on top of the main menu. */
+  get inSub(): boolean {
+    return !this.settingsEl.classList.contains('hidden') || !this.help.classList.contains('hidden');
+  }
+
   get anyOpen(): boolean {
     return [this.main, this.pause, this.settingsEl, this.help].some((e) => !e.classList.contains('hidden'));
   }
