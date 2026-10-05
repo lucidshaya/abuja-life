@@ -57,17 +57,25 @@ export class TouchControls {
       this.btns[cls] = b;
       return b;
     };
-    const cluster = h('div.tcluster', {},
-      mk('jump', 'Jump', 'jump', true),
-      mk('sprint', 'Run', 'sprint', true),
+    // Action buttons: move to top row (left side) and action/car (right side below sprint).
+    const leftBtns = h('div.ttop-left', {},
+      mk('dance', '💃🏾', 'dance', false),
+      mk('map', '🗺️', 'map', false),
+      mk('phone', '📱', 'phone', false),
+      mk('pause', 'II', 'pause', false),
+    );
+    for (const [k, l] of [['dance', 'Dance'], ['map', 'Map'], ['phone', 'Phone'], ['pause', 'Pause']] as const) this.btns[k].setAttribute('aria-label', l);
+    const rightBtns = h('div.ttop-right', {},
       (this.actionBtn = mk('action', 'Talk', 'interact', false)),
       mk('car', 'Car', 'vehicle', false),
       (this.hornBtn = mk('horn', 'Horn', 'horn', false)),
       (this.giveBtn = mk('give', 'Give', 'give', false)),
     );
-    const top = h('div.ttop', {}, mk('dance', '💃🏾', 'dance', false), mk('map', '🗺️', 'map', false), mk('phone', '📱', 'phone', false), mk('pause', 'II', 'pause', false));
-    for (const [k, l] of [['dance', 'Dance'], ['map', 'Map'], ['phone', 'Phone'], ['pause', 'Pause']] as const) this.btns[k].setAttribute('aria-label', l);
-    this.root.append(this.lookZone, this.stickZone, cluster, top);
+    const cluster = h('div.tcluster', {},
+      mk('jump', 'Jump', 'jump', true),
+      mk('sprint', 'Run', 'sprint', true),
+    );
+    this.root.append(this.lookZone, this.stickZone, cluster, leftBtns, rightBtns);
 
     this.stickZone.addEventListener('pointerdown', (e) => {
       if (this.stickId !== null) return;

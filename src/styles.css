@@ -403,14 +403,17 @@ body.touch-mode #phonebtn { display: none !important; }
 .tbtn.on { background: rgba(242, 194, 48, 0.85); color: var(--ink); transform: scale(0.94); }
 .tbtn.jump { width: 84px; height: 84px; right: 0; bottom: 0; background: rgba(15, 138, 75, 0.7); }
 .tbtn.sprint { width: 66px; height: 66px; right: 96px; bottom: 0; }
-.tbtn.action { width: 70px; height: 70px; right: 8px; bottom: 98px; background: rgba(242, 194, 48, 0.8); color: var(--ink); animation: pulse 1.2s infinite; }
-.tbtn.car { width: 62px; height: 62px; right: 98px; bottom: 78px; }
-.tbtn.horn { width: 56px; height: 56px; right: 168px; bottom: 30px; }
-.tbtn.give { width: 56px; height: 56px; right: 168px; bottom: 96px; background: rgba(89, 226, 143, 0.7); color: var(--ink); }
-.ttop .tbtn.dance { font-size: 11px; }
+.tbtn.action { background: rgba(242, 194, 48, 0.8); color: var(--ink); animation: pulse 1.2s infinite; }
+.tbtn.car { }
+.tbtn.horn { background: rgba(255, 255, 255, 0.12); }
+.tbtn.give { background: rgba(89, 226, 143, 0.7); color: var(--ink); }
+.ttop { display: none; }
+.ttop-left, .ttop-right { position: absolute; top: calc(12px + var(--safe-t)); display: flex; gap: 10px; }
+.ttop-left { left: calc(12px + var(--safe-l)); }
+.ttop-right { right: calc(12px + var(--safe-r)); }
+.ttop-left .tbtn, .ttop-right .tbtn { position: static; width: 50px; height: 50px; font-size: 13px; }
+.ttop-left .tbtn.dance { font-size: 11px; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 10px rgba(242, 194, 48, 0.2); } }
-.ttop { position: absolute; top: calc(196px + var(--safe-t)); right: calc(18px + var(--safe-r)); display: flex; gap: 10px; }
-.ttop .tbtn { position: static; width: 50px; height: 50px; font-size: 13px; }
 
 /* Touch: bigger, roomier HUD */
 body.touch-mode .hints { display: none; }

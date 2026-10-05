@@ -7,7 +7,10 @@
       "Bash(npm run *)",
       "Bash(npm test *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(npx tsc *)",
+      "Bash(git commit -q -m 'Mobile: move buttons to top bars, make entire right side for camera look/turn *)",
+      "Bash(git push *)"
     ]
   }
 }
