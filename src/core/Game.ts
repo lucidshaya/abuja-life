@@ -34,6 +34,7 @@ import { buildPark } from '../world/locations/Park';
 import { buildCage, buildGuzape } from '../world/locations/Small';
 import { ABUJA2_QUICK, buildAbuja2 } from '../world/locations/Abuja2';
 import { HOME_LIGHTS, buildEstate } from '../world/locations/Estate';
+import { buildWorkspaces } from '../world/locations/Workspaces';
 import { ESTATE, ESTATE_DUES, TOKENS, inEstate, newHome, powerOut, unitsFor, useUnits, weekOf, weeksOwed } from '../player/Home';
 import { TravelMenu, type TravelChoice, type TravelMode } from '../ui/TravelMenu';
 import { Phone } from '../ui/Phone';
@@ -169,7 +170,7 @@ export class Game {
     this.animators.push(...lm.animators);
     progress(0.55, 'Stocking ShopRite shelves and filling Millennium Park…');
     await nextFrame();
-    const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world), buildAbuja2(this.world), buildEstate(this.world)];
+    const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world), buildAbuja2(this.world), buildEstate(this.world), buildWorkspaces(this.world)];
     for (const l of locs) {
       this.scene.add(l.group);
       this.animators.push(...l.animators);

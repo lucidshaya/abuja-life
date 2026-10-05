@@ -12,6 +12,9 @@ export type MusicMode = 'city' | 'club' | 'off';
 const PLAYLIST = [
   { url: 'music/theme.mp3', name: 'How Far (feat. Ayjay Bobo)' },
   { url: 'music/superwoman.mp3', name: 'Superwoman' },
+  { url: 'music/swagga.mp3', name: 'Swagga' },
+  { url: 'music/bb-lifestyle.mp3', name: 'BB Lifestyle' },
+  { url: 'music/gimme-dat-ting.mp3', name: 'Gimme Dat Ting' },
 ];
 
 
@@ -95,7 +98,10 @@ export class Music {
     if (this.playlist.length < 2 || this.userTrack) return;
     const wasPlaying = this.playing;
     this.playlist[this.trackIdx].el.pause();
-    this.trackIdx = (this.trackIdx + 1) % this.playlist.length;
+    // Shuffle: any other song, never the same one twice in a row.
+    let n = this.trackIdx;
+    while (n === this.trackIdx) n = Math.floor(Math.random() * this.playlist.length);
+    this.trackIdx = n;
     const el = this.playlist[this.trackIdx].el;
     el.currentTime = 0;
     this.file.city = el;
@@ -132,7 +138,7 @@ export class Music {
       try {
         const el = new window.Audio(t.url);
         el.crossOrigin = 'anonymous';
-        el.preload = this.playlist.length ? 'none' : 'auto';
+        el.preload = this.playlist.length ? 'none' : 'auto'; // only the first song downloads up front
         const node = this.ctx.createMediaElementSource(el);
         node.connect(this.out);
         this.fileNode.push(node);
