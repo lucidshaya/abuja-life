@@ -66,9 +66,7 @@ export class TravelMenu {
       this.layer.append(el);
       this.pins.push(pin);
     };
-    if (mode === 'start') {
-      add({ name: 'Abuja City Gate', area: 'Start here', desc: 'Begin your Abuja story under the famous gate. Uncle Emeka dey wait.', color: '#0f7a45', featured: false, badge: 'START', x: LANDMARKS.cityGate.x, z: LANDMARKS.cityGate.z, choice: 'gate' });
-    }
+    add({ name: 'Abuja City Gate', area: 'Expressway', desc: 'The famous gate on the Abuja–Kaduna expressway. Uncle Emeka dey wait.', color: '#0f7a45', featured: false, badge: mode === 'start' ? 'START' : undefined, x: LANDMARKS.cityGate.x, z: LANDMARKS.cityGate.z, choice: 'gate' });
     if (mode === 'continue' && extra) {
       add({ name: 'Continue here', area: 'Where you stopped', desc: 'Pick up right where you left off.', color: '#ffffff', featured: false, badge: 'YOU', x: extra.x, z: extra.z, choice: 'stay' });
     }

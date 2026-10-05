@@ -65,7 +65,22 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await page.screenshot({ path: `${OUT}/02-customizer.png` });
   await page.click('text=Start Life in Abuja');
   await sleep(600);
-  check('desktop: travel menu shows after New Life', await page.isVisible('#travel'));
+  check('tutorial: shows the first time', await page.isVisible('#tutorial .tu-card'));
+  await page.screenshot({ path: `${OUT}/02a-tutorial.png` });
+  for (let i = 0; i < 5; i++) { await page.click('.tu-next'); await sleep(250); }
+  check('tutorial: closes after 5 pages', !(await page.isVisible('#tutorial')));
+  await sleep(1500);
+  const home = await G(page, () => ({ indoor: window.__abuja.indoor?.id, state: window.__abuja.state }));
+  check('spawn: new life starts inside your house', home.indoor === 'home', JSON.stringify(home));
+  await page.waitForSelector('#explore .ex-card', { timeout: 8000 }).catch(() => {});
+  check('explore: one-time "explore the map" card', await page.isVisible('#explore .ex-card'));
+  await page.screenshot({ path: `${OUT}/02c-explore.png` });
+  await page.click('#explore >> text=I go waka first');
+  await sleep(400);
+  check('onboarding: remembered for next time', await G(page, () => localStorage.getItem('abuja-life-onboarded-v1') === 'tutorial,explore'));
+  await G(page, () => window.__abuja.openTravel('pause'));
+  await sleep(600);
+  check('desktop: travel menu opens', await page.isVisible('#travel'));
   const ncards = await page.locator('.tcard').count();
   check('desktop: travel menu lists places + start + workplace', ncards >= 10, String(ncards));
   check('travel: workplace pin for your role', await page.isVisible('.tcard:has-text("Your workplace")'));
@@ -81,6 +96,20 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await page.click('.tcard:has-text("Abuja City Gate")');
   await sleep(1400);
   let p0 = await pos(page);
+  // Phone stays phone-sized even with long emails (wide desktop window).
+  await page.setViewportSize({ width: 1000, height: 570 });
+  await G(page, () => window.__abuja.openPhone('home'));
+  await sleep(500);
+  const phw = await G(page, () => document.querySelector('.ph-frame').getBoundingClientRect().width);
+  await page.click('.ph-app:has-text("Mail")');
+  await sleep(300);
+  const phw2 = await G(page, () => document.querySelector('.ph-frame').getBoundingClientRect().width);
+  check('phone: stays phone-sized with long emails', phw2 < 400 && phw2 >= 300, `${phw} → ${phw2}`);
+  await page.screenshot({ path: `${OUT}/02d-phone-mail-wide.png` });
+  await page.click('.ph-close');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await sleep(400);
+  p0 = await pos(page);
   check('desktop: playing after customizer', p0.state === 'play', p0.state);
   const roleInfo = await G(page, () => ({ role: window.__abuja.save.role, money: window.__abuja.save.stats.money, mail: window.__abuja.save.phone.mail.length }));
   check('roles: student role saved with its money', roleInfo.role === 'student' && roleInfo.money === 15000 + 5000, JSON.stringify(roleInfo));
@@ -480,7 +509,15 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await page.screenshot({ path: `${OUT}/20-mobile-customizer.png` });
   await page.tap('text=Start Life in Abuja');
   await sleep(600);
-  await page.screenshot({ path: `${OUT}/20b-mobile-travel.png` });
+  await page.screenshot({ path: `${OUT}/20b-mobile-tutorial.png` });
+  for (let i = 0; i < 5; i++) { await page.tap('.tu-next'); await sleep(250); }
+  await page.waitForSelector('#explore .ex-card', { timeout: 8000 }).catch(() => {});
+  await page.screenshot({ path: `${OUT}/20c-mobile-explore.png` });
+  await page.tap('#explore >> text=Open the map');
+  await sleep(600);
+  check('mobile: explore card opens the map', await page.isVisible('#map'));
+  await page.tap('.map-head >> text=Fast travel');
+  await sleep(600);
   await page.tap('.tcard:has-text("Abuja City Gate")');
   await sleep(1400);
   check('mobile: touch controls visible', await page.isVisible('#touch'));

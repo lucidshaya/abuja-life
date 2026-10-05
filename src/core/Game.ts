@@ -37,6 +37,7 @@ import { HOME_LIGHTS, buildEstate } from '../world/locations/Estate';
 import { buildWorkspaces } from '../world/locations/Workspaces';
 import { HOUSE_MESHES, buildHouse } from '../world/locations/HouseInterior';
 import { HouseShop } from '../ui/HouseShop';
+import { seen, showExplore, showTutorial } from '../ui/Onboarding';
 import { ESTATE, ESTATE_DUES, FURNITURE, TOKENS, homeDark, inEstate, newHome, powerOut, type Furniture, unitsFor, useUnits, weekOf, weeksOwed } from '../player/Home';
 import { TravelMenu, type TravelChoice, type TravelMode } from '../ui/TravelMenu';
 import { Phone } from '../ui/Phone';
@@ -51,7 +52,7 @@ import { FullMap, MapImage, Minimap, npcMarkers, type MapMarker } from '../ui/Mi
 import { TouchControls } from '../ui/TouchControls';
 import { $, h, naira, show } from '../ui/dom';
 
-type State = 'loading' | 'menu' | 'customize' | 'play' | 'paused' | 'dialogue' | 'map' | 'travel' | 'phone' | 'shop';
+type State = 'loading' | 'menu' | 'customize' | 'play' | 'paused' | 'dialogue' | 'map' | 'travel' | 'phone' | 'shop' | 'modal';
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -506,8 +507,34 @@ export class Game {
     this.addMail('Abuja Life', `Welcome to Abuja, ${cfg.name}!`, `Your email address is ${playerEmail(cfg.name, role)}.\n\nYou are now a ${role.name}. ${role.blurb}\n\n${role.salary ? `Your pay of ${naira(role.salary)} lands in your OPay account every morning at 8am.` : 'You earn money by working — go to ' + role.workplace.name + ' and open the quick actions.'}\n\nPerk: ${role.perk}`, false);
     this.addMail(role.workplace.name, role.email.welcome.subject, role.email.welcome.body, false);
     this.addMail('Sunshine Court Estate', 'Welcome to your new house!', `Dear ${cfg.name},\n\nWelcome to ${ESTATE.name}, ${ESTATE.area}. Your house is the first one on the left after the gate.\n\n• Electricity is prepaid. Your meter has 20 units (about 3 days). Buy AEDC tokens at the meter or in OPay → Bills, or light go off.\n• Service charge is ${naira(ESTATE_DUES)} every week (Monday). Your first week is paid.\n\n— Mrs. Okon, Estate Manager`, false);
+    // You wake up inside your own house.
+    this.player.teleport(1476, 259, Math.PI);
+    this.rig.snapBehind(Math.PI);
     this.persist();
-    this.openTravel('start');
+    const enter = () => {
+      this.startPlay();
+      this.hud.showToast('WELCOME HOME', `${ESTATE.name}, ${ESTATE.area}`);
+      if (!seen('explore')) window.setTimeout(() => this.offerExplore(), 1600);
+    };
+    if (seen('tutorial')) enter();
+    else {
+      this.state = 'modal';
+      this.hud.setVisible(false);
+      showTutorial(this.input.device === 'touch', () => this.audio.click(), enter);
+    }
+  }
+
+  /** One-time "go explore" card. */
+  private offerExplore(): void {
+    if (this.state !== 'play') return;
+    this.state = 'modal';
+    this.unlockPointer();
+    this.player.vx = this.player.vz = 0;
+    this.refreshTouch();
+    showExplore(this.input.device === 'touch', () => this.audio.click(), () => {
+      this.state = 'play';
+      this.openMap();
+    }, () => this.startPlay());
   }
 
   get role(): Role | null {
@@ -767,7 +794,7 @@ export class Game {
     const name = this.save.character.name;
     this.setAerial(false);
     if (mode === 'taxi') {
-      if (c === 'stay' || c === 'gate') return this.startPlay();
+      if (c === 'stay') return this.startPlay();
       const err = this.bankOp({ label: 'One-Way taxi (Danladi)', amount: -TAXI_FARE, clout: 0 });
       if (err) {
         this.startPlay();
@@ -1016,6 +1043,9 @@ export class Game {
         break;
       case 'shop':
         if (this.input.wasPressed('pause')) this.shop.close();
+        this.updateWorld(dt, false);
+        break;
+      case 'modal':
         this.updateWorld(dt, false);
         break;
     }

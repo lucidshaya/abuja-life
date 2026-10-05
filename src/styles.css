@@ -264,16 +264,17 @@ body.touch-mode #phonebtn { display: none !important; }
 .ph-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
 .ph-close { position: absolute; top: calc(14px + var(--safe-t)); right: calc(16px + var(--safe-r)); width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; font-size: 18px; z-index: 2; }
 .ph-frame {
-  position: absolute; right: max(4vw, 24px); bottom: calc(14px + var(--safe-b)); height: min(720px, calc(100dvh - 28px)); aspect-ratio: 9 / 19;
-  max-width: calc(100vw - 32px); border-radius: 44px; background: #111; padding: 12px; box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7), inset 0 0 0 2px #333;
+  position: absolute; right: max(4vw, 24px); bottom: calc(14px + var(--safe-b)); height: min(720px, calc(100dvh - 28px));
+  /* Fixed width (not aspect-ratio) so long text can never stretch the phone. */
+  width: min(max(calc(min(720px, 100dvh - 28px) * 9 / 19), 330px), calc(100vw - 32px)); min-width: 0; box-sizing: border-box; border-radius: 44px; background: #111; padding: 12px; box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7), inset 0 0 0 2px #333;
 }
 .ph-frame.up { animation: phup 0.28s cubic-bezier(.2,.9,.3,1.2); }
 @keyframes phup { from { transform: translateY(40px) scale(0.96); opacity: 0; } }
 .ph-notch { position: absolute; top: 18px; left: 50%; width: 92px; height: 24px; margin-left: -46px; border-radius: 14px; background: #000; z-index: 3; }
-.ph-screen { position: relative; height: 100%; border-radius: 34px; overflow: hidden; display: flex; flex-direction: column; color: #fff; font-family: var(--body); }
+.ph-screen { position: relative; height: 100%; min-width: 0; width: 100%; border-radius: 34px; overflow: hidden; display: flex; flex-direction: column; color: #fff; font-family: var(--body); }
 .ph-status { display: flex; justify-content: space-between; padding: 12px 22px 6px; font: 700 12px var(--body); letter-spacing: 0.02em; }
 .ph-sig { opacity: 0.9; }
-.ph-body { flex: 1; overflow-y: auto; padding: 4px 14px 30px; touch-action: pan-y; display: flex; flex-direction: column; gap: 10px; }
+.ph-body { flex: 1; min-width: 0; overflow-x: hidden; overflow-y: auto; padding: 4px 14px 30px; touch-action: pan-y; display: flex; flex-direction: column; gap: 10px; }
 .ph-homebar { position: absolute; bottom: 7px; left: 50%; width: 120px; height: 5px; margin-left: -60px; border-radius: 3px; background: rgba(255,255,255,.75); border: none; padding: 0; }
 .ph-clock { text-align: center; margin: 22px 0 18px; }
 .ph-time { font: 800 46px var(--head); letter-spacing: -0.02em; }
@@ -685,4 +686,50 @@ body.touch-mode .stick-hint { width: 96px; height: 96px; bottom: calc(36px + var
   body.touch-mode .tbtn.jump { width: 66px; height: 66px; }
   body.touch-mode .tbtn.action { bottom: 80px; }
   body.touch-mode .tbtn.car { bottom: 74px; }
+}
+
+.ph-body > *, .ct-list > * { min-width: 0; max-width: 100%; }
+.ml-subj, .ms-prev, .ms-from { display: block; max-width: 100%; }
+
+/* ---------- First-time tutorial + explore card ---------- */
+#tutorial { z-index: 36; background: rgba(3, 12, 7, 0.88); }
+.tu-card { width: min(860px, 100%); max-height: calc(100dvh - 24px); display: flex; flex-direction: column; background: var(--glass-2); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6); }
+.tu-img { position: relative; background: #000; aspect-ratio: 16 / 9; max-height: 56dvh; flex: none; }
+.tu-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tu-step { position: absolute; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.6); padding: 3px 10px; border-radius: 99px; font: 800 12px var(--body); }
+.tu-body { padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.tu-title { font: 800 22px var(--head); color: #fff; }
+.tu-text { color: #e7f3ea; line-height: 1.45; font-size: 15px; }
+.tu-foot { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.tu-dots { display: flex; gap: 6px; flex: 1; }
+.tu-dots span { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); }
+.tu-dots span.on { background: var(--gold); width: 22px; border-radius: 99px; }
+.tu-next { min-width: 140px; text-align: center; }
+@media (max-height: 520px) {
+  #tutorial { padding: 8px; }
+  .tu-card { flex-direction: row; width: min(860px, 100%); }
+  .tu-img { width: 52%; aspect-ratio: auto; max-height: none; }
+  .tu-body { width: 48%; padding: 12px 14px; overflow-y: auto; }
+  .tu-title { font-size: 18px; }
+  .tu-text { font-size: 13.5px; flex: 1; }
+  .tu-foot { flex-wrap: wrap; }
+}
+#explore { z-index: 35; background: rgba(3, 12, 7, 0.45); }
+.ex-card { width: min(420px, 100%); background: var(--glass-2); border: 1px solid var(--line); border-radius: 22px; padding: 22px; text-align: center; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); animation: pushIn2 0.4s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes pushIn2 { from { transform: scale(0.85); opacity: 0; } }
+.ex-ic { font-size: 46px; }
+.ex-title { font: 800 24px var(--head); color: #fff; margin: 4px 0 6px; }
+.ex-text { color: #e7f3ea; line-height: 1.45; }
+.ex-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.ex-btns .btn { text-align: center; }
+
+@media (max-height: 520px) {
+  .ph-frame { border-radius: 30px; padding: 8px; }
+  .ph-screen { border-radius: 24px; }
+  .ph-notch { top: 12px; width: 70px; margin-left: -35px; height: 18px; }
+  .ph-clock { margin: 8px 0 8px; }
+  .ph-time { font-size: 34px; }
+  .ph-grid { gap: 10px 6px; }
+  .ph-icon { width: 48px; height: 48px; font-size: 22px; border-radius: 13px; }
+  .bk-bal { font-size: 26px; }
 }
