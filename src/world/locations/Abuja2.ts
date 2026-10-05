@@ -1246,7 +1246,7 @@ function wonderland(world: CollisionWorld, b: Build): void {
     for (let i = 0; i < 6; i++) k.sphere(18.2, 1.2 + (i % 2) * 0.6, z - 1.8 + Math.floor(i / 2) * 1.6, 0.28, pick(rng, CANDY), 1, 6);
     sign(g, z === 322 ? 'WIN A TEDDY!' : 'SHOOTING GAME', 18.55, 3.2, z, HALF, 4, 0.7, { bg: '#6c2c91', fg: '#ffe14a' });
   }
-  for (const [x, z] of [[24, 270], [100, 352], [48, 352], [104, 312], [18, 350]] as const) k.tree(x, z, 1, (x + z) % 2 === 0);
+  for (const [x, z] of [[24, 270], [100, 352], [48, 352], [104, 320], [18, 350]] as const) k.tree(x, z, 1, (x + z) % 2 === 0);
   for (const [x, z] of [[52, 290], [68, 320], [52, 320]] as const) k.bench(x, z, HALF);
   k.flush(g);
   bulbs.flush(b, g, 0xfff0a0, 0xf3ead2, 2.6);
@@ -1372,7 +1372,7 @@ function motorPark(world: CollisionWorld, b: Build): void {
     { kind: 'wander', rect: { x0: -340, z0: 166, x1: -280, z1: 177.5 }, count: 5, cfg: tout },
     { kind: 'wander', rect: { x0: -340, z0: 188.5, x1: -280, z1: 199.5 }, count: 4, carry: 'bag' },
     { kind: 'wander', rect: { x0: -340, z0: 210.5, x1: -280, z1: 221.5 }, count: 4, carry: 'bag' },
-    { kind: 'wander', rect: { x0: -345, z0: 140.5, x1: -276, z1: 154.5 }, count: 6, carry: 'bag' },
+    { kind: 'wander', rect: { x0: -322, z0: 140.5, x1: -276, z1: 154.5 }, count: 5, carry: 'bag' },
     { kind: 'wander', rect: { x0: -351, z0: 150, x1: -347, z1: 232 }, count: 3, carry: 'bag' },
   ];
   for (const [rz] of rows) for (let i = 0; i < 2; i++) agents.push({ kind: 'static', x: -330 + i * 30 + rng() * 6, z: rz + 4.3, facing: rng() * 6, pose: 'cheer', cfg: tout });
@@ -1414,9 +1414,9 @@ function stadium(world: CollisionWorld, b: Build): void {
   line(CX - 28, CZ + 16.85, CX + 28, CZ + 17);
   line(CX - 28, CZ - 17, CX - 27.85, CZ + 17);
   line(CX + 27.85, CZ - 17, CX + 28, CZ + 17);
-  line(CX - 0.08, CZ - 17, CX + 0.08, CZ + 17);
-  k.disc(CX, CZ, 5, 0.053, W, 1, 1, 32);
-  k.disc(CX, CZ, 4.85, 0.054, 0x47a03c, 1, 1, 32);
+  k.disc(CX, CZ, 5, 0.062, W, 1, 1, 32);
+  k.disc(CX, CZ, 4.85, 0.068, 0x3f9636, 1, 1, 32);
+  k.floor(CX - 0.08, CZ - 17, CX + 0.08, CZ + 17, 0.074, W);
   for (const s of [-1, 1]) {
     const gx = CX + s * 28;
     line(Math.min(gx, gx - s * 9), CZ - 10, Math.max(gx, gx - s * 9), CZ - 9.85);
@@ -1834,7 +1834,7 @@ export const ABUJA2_QUICK: QuickZone[] = [
       spot('Park gate', '🚌', -300, 146, 0),
       talk('Ticket booth', '🎫', 'jmp-ticket'),
       talk('Agbero (tout)', '📣', 'jmp-tout'),
-      talk('Mai shayi (tea)', '🍵', 'jmp-shayi'),
+      talk('Mai shayi (tea)', '🍵', 'jmp-shayi', 2.4),
       spot('Kaduna & Lagos buses', '🚐', -310, 175, Math.PI),
       spot('Public toilet', '🚻', -268, 228, Math.PI),
     ],

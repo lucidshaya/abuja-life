@@ -1,11 +1,12 @@
 import type { GameEvent } from './EventSystem';
+import { PLACE_EVENTS } from './eventsPlaces';
 
 /**
  * All the Abuja wahala and enjoyment, as data. Add new events here — the
  * EventSystem picks them up automatically. Lines are mostly Pidgin with
  * plain-English choices so everybody can play.
  */
-export const EVENTS: GameEvent[] = [
+const BASE_EVENTS: GameEvent[] = [
   {
     id: 'welcome',
     title: 'Welcome to Abuja',
@@ -967,3 +968,6 @@ export const EVENTS: GameEvent[] = [
     ],
   },
 ];
+
+/** Base events plus the ten extra places (events/eventsPlaces.ts). */
+export const EVENTS: GameEvent[] = [...BASE_EVENTS, ...PLACE_EVENTS];

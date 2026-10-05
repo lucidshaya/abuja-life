@@ -146,9 +146,9 @@ describe('Locations', async () => {
   const { PORTALS, TRAVEL, INTERIORS, interiorAt } = await import('../src/world/locations/Locations');
   const { EVENTS } = await import('../src/events/eventsData');
 
-  it('has 8 fast-travel places, 3 featured', () => {
-    expect(TRAVEL).toHaveLength(8);
-    expect(TRAVEL.filter((t) => t.featured).map((t) => t.id).sort()).toEqual(['mall', 'nile', 'park']);
+  it('has 18 fast-travel places, 7 featured', () => {
+    expect(TRAVEL).toHaveLength(18);
+    expect(TRAVEL.filter((t) => t.featured).map((t) => t.id).sort()).toEqual(['farmcity', 'hilton', 'mall', 'nass', 'nile', 'park', 'stadium']);
   });
 
   it('every "in" door leads inside an interior and every "out" door leads back outside', () => {

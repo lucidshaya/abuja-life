@@ -143,7 +143,7 @@ export class Game {
     this.glowMats.push(...city.glowMats);
     this.poolMat = city.poolMat;
     // Interiors sit east of the city, so the bounds cover both; walls fence the city itself.
-    this.world.bounds = { x0: WORLD.x0, z0: WORLD.z0, x1: 1700, z1: WORLD.z1 };
+    this.world.bounds = { x0: WORLD.x0, z0: WORLD.z0, x1: 1800, z1: WORLD.z1 };
     this.world.addBox(WORLD.x1, WORLD.z0 - 5, WORLD.x1 + 5, WORLD.z1 + 5, 50);
     progress(0.45, 'Painting Aso Rock and the National Mosque…');
     await nextFrame();
