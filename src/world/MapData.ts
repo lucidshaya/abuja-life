@@ -180,6 +180,10 @@ export const RESERVED: Rect[] = [
   { x0: 8, z0: 256, x1: 114, z1: 364 }, // Wonderland, Garki
   { x0: -364, z0: 134, x1: -256, z1: 244 }, // Jabi Motor Park, Utako
   { x0: -245, z0: -368, x1: -131, z1: -261 }, // Sunshine Court Estate (your house), Gwarinpa
+  // ---- Role workplaces (locations/Workspaces.ts) ----
+  { x0: 12, z0: -60, x1: 60, z1: -10 }, // Wuse Tech Hub (Tech Bro), Wuse 2
+  { x0: -488, z0: -238, x1: -423, z1: -158 }, // Government Secondary School Kubwa (NYSC PPA)
+  { x0: 324, z0: 6, x1: 366, z1: 64 }, // FCTA Secretariat (FCT Minister), Central Area
 ];
 
 /** Areas kept free of scattered trees because a location is built there. */
@@ -201,6 +205,13 @@ export const NO_TREES: Rect[] = [
   { x0: -915, z0: -100, x1: -640, z1: 300 }, // Airport terminal, apron, runway
   { x0: -915, z0: 300, x1: -862, z1: 415 }, // Runway (south end)
   { x0: -245, z0: -368, x1: -131, z1: -249 }, // Sunshine Court Estate + driveway
+  // ---- Role workplaces (locations/Workspaces.ts) ----
+  { x0: 12, z0: -60, x1: 60, z1: -10 }, // Wuse Tech Hub
+  { x0: -488, z0: -239, x1: -423, z1: -158 }, // GSS Kubwa
+  { x0: 322, z0: 5.5, x1: 367, z1: 64 }, // FCTA Secretariat
+  { x0: -37, z0: 131, x1: -23, z1: 140 }, // Your POS stand, Garki
+  { x0: -230, z0: 133, x1: -212, z1: 153 }, // Your fabric shop, Wuse Market
+  { x0: -247, z0: 203, x1: -229, z1: 224 }, // Tsangaya, Wuse Market
 ];
 
 export const LANDMARKS = {
@@ -228,7 +239,7 @@ export const NPC_SPOTS: NpcSpot[] = [
   { id: 'suya', name: 'Mallam Musa (Suya)', x: 24, z: 14, facing: Math.PI, eventId: 'suya', look: 'mallam' },
   { id: 'market', name: 'Mama Nkechi', x: -186, z: 182, facing: Math.PI, eventId: 'market', look: 'mama' },
   { id: 'owambe', name: 'Aunty Funmi (Celebrant)', x: -300, z: -296, facing: 0, eventId: 'owambe', look: 'aunty' },
-  { id: 'ministry', name: 'Mr. Danjuma (Clerk)', x: 300, z: 46, facing: Math.PI, eventId: 'ministry', look: 'clerk' },
+  { id: 'ministry', name: 'Mr. Danjuma (Clerk)', x: 300, z: 56.5, facing: 0, eventId: 'ministry', look: 'clerk' },
   { id: 'bigman', name: 'Chief "Do You Know Me"', x: 12, z: -238, facing: Math.PI, eventId: 'bigman', look: 'bigman' },
   { id: 'pastor', name: 'Evangelist Joshua', x: 28, z: 226, facing: Math.PI / 2, eventId: 'preacher', look: 'pastor' },
   { id: 'boat', name: 'Baba Boat', x: -255, z: -54, facing: 0, eventId: 'jabi-boat', look: 'boatman' },
@@ -313,6 +324,11 @@ export const NPC_SPOTS: NpcSpot[] = [
   { id: 'estate-manager', name: 'Estate Manager Mrs. Okon', x: -182.6, z: -270, facing: -Math.PI / 2, eventId: 'estate-office', look: 'aunty' },
   { id: 'estate-door', name: 'Your front door', x: -207.6, z: -287, facing: Math.PI / 2, eventId: 'estate-home', look: 'none' },
   { id: 'estate-meter', name: 'Prepaid meter (AEDC)', x: -207.6, z: -290.5, facing: Math.PI / 2, eventId: 'estate-meter', look: 'none' },
+  { id: 'home-bed', name: 'Bed', x: 1470.5, z: 245, facing: Math.PI / 2, eventId: 'home-bed', look: 'none' },
+  { id: 'home-laptop', name: 'Laptop (Jumia furniture shop)', x: 1488, z: 259.2, facing: Math.PI, eventId: 'home-laptop', look: 'none' },
+  { id: 'home-wardrobe', name: 'Wardrobe', x: 1473.75, z: 241.9, facing: 0, eventId: 'home-wardrobe', look: 'none' },
+  { id: 'home-couch', name: 'Living room (TV & couch)', x: 1464.6, z: 256, facing: Math.PI / 2, eventId: 'home-couch', look: 'none' },
+  { id: 'home-fridge', name: 'Kitchen', x: 1489, z: 242.2, facing: -Math.PI / 2, eventId: 'home-fridge', look: 'none' },
   { id: 'waza-plug', name: 'Waza Plug (Banex)', x: -70, z: 90, facing: 0, eventId: 'waza-plug', look: 'phoneguy' },
 ];
 

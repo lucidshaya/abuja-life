@@ -35,7 +35,9 @@ import { buildCage, buildGuzape } from '../world/locations/Small';
 import { ABUJA2_QUICK, buildAbuja2 } from '../world/locations/Abuja2';
 import { HOME_LIGHTS, buildEstate } from '../world/locations/Estate';
 import { buildWorkspaces } from '../world/locations/Workspaces';
-import { ESTATE, ESTATE_DUES, TOKENS, inEstate, newHome, powerOut, unitsFor, useUnits, weekOf, weeksOwed } from '../player/Home';
+import { HOUSE_MESHES, buildHouse } from '../world/locations/HouseInterior';
+import { HouseShop } from '../ui/HouseShop';
+import { ESTATE, ESTATE_DUES, FURNITURE, TOKENS, homeDark, inEstate, newHome, powerOut, type Furniture, unitsFor, useUnits, weekOf, weeksOwed } from '../player/Home';
 import { TravelMenu, type TravelChoice, type TravelMode } from '../ui/TravelMenu';
 import { Phone } from '../ui/Phone';
 import { BILLS, FLAG_TEXTS, TAXI_FARE, TRANSFER_FEE, groupText, morningText, requestReply, transferOp, uid, type Contact } from '../phone/PhoneData';
@@ -49,7 +51,7 @@ import { FullMap, MapImage, Minimap, npcMarkers, type MapMarker } from '../ui/Mi
 import { TouchControls } from '../ui/TouchControls';
 import { $, h, naira, show } from '../ui/dom';
 
-type State = 'loading' | 'menu' | 'customize' | 'play' | 'paused' | 'dialogue' | 'map' | 'travel' | 'phone';
+type State = 'loading' | 'menu' | 'customize' | 'play' | 'paused' | 'dialogue' | 'map' | 'travel' | 'phone' | 'shop';
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -103,10 +105,24 @@ export class Game {
         { label: 'Your car', icon: '🚗', x: -201.6, z: -294.6, heading: -Math.PI / 2 },
       ],
     },
+    {
+      id: 'home', name: 'Your house', rects: [], interiors: ['home'],
+      items: [
+        standBy('home-laptop', 'Buy furniture (laptop)', '🛒'),
+        standBy('home-bed', 'Bed (sleep)', '🛏️'),
+        standBy('home-wardrobe', 'Wardrobe (change clothes)', '👕'),
+        standBy('home-couch', 'Living room (TV & couch)', '📺'),
+        standBy('home-fridge', 'Kitchen', '🍳'),
+        { label: 'Go outside', icon: '🚪', x: -204.5, z: -287, heading: Math.PI / 2 },
+      ],
+    },
     ...QUICK_ZONES,
     ...ABUJA2_QUICK.map((z) => (z.id === 'banex' ? { ...z, items: [...z.items, standBy('waza-plug', 'Waza plug (buy vapes)', '💨')] } : z)),
   ];
   private wasInEstate = false;
+  private nearCarNow = false;
+  private shop!: HouseShop;
+  private furnitureSolid = new Set<string>();
   private emotes!: EmoteMenu;
   private cheerAt = -999;
   private giveTarget: { name: string; person: Person | null; spot: NpcSpot | null; almajiri: boolean } | null = null;
@@ -170,7 +186,7 @@ export class Game {
     this.animators.push(...lm.animators);
     progress(0.55, 'Stocking ShopRite shelves and filling Millennium Park…');
     await nextFrame();
-    const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world), buildAbuja2(this.world), buildEstate(this.world), buildWorkspaces(this.world)];
+    const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world), buildAbuja2(this.world), buildEstate(this.world), buildWorkspaces(this.world), buildHouse(this.world)];
     for (const l of locs) {
       this.scene.add(l.group);
       this.animators.push(...l.animators);
@@ -249,6 +265,15 @@ export class Game {
     this.customizer.onClick = () => this.audio.click();
     this.rolePicker = new RolePicker();
     this.rolePicker.onClick = () => this.audio.click();
+    this.shop = new HouseShop();
+    this.shop.onClick = () => this.audio.click();
+    this.shop.onClose = () => {
+      if (this.state !== 'shop') return;
+      this.state = 'play';
+      this.hud.setVisible(true);
+      this.refreshTouch();
+      this.lockPointer();
+    };
     this.quick = new QuickActions(document.body);
     this.quick.onClick = () => this.audio.click();
     this.quick.onPick = (i) => this.quickActs[i]?.();
@@ -374,6 +399,14 @@ export class Game {
       if (this.state === 'play') this.openPhone();
     });
     this.phoneBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const danceBtn = $('dancebtn');
+    danceBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    danceBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.state !== 'play' || this.car) return;
+      if (this.playerChar.isEmoting || this.emotes.open) this.stopEmote();
+      else this.emotes.show(false);
+    });
     this.muteBtn = $('mute') as HTMLButtonElement;
     this.muteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -463,6 +496,7 @@ export class Game {
     this.leaveCar(true);
     this.resetCars();
     this.save.home = newHome(this.day * 24 + this.hour);
+    this.applyFurniture();
     this.player.teleport(ESTATE.spawn.x, ESTATE.spawn.z, ESTATE.spawn.heading);
     this.rig.snapBehind(ESTATE.spawn.heading);
     this.addTx('Opening balance', role.money);
@@ -807,6 +841,7 @@ export class Game {
     this.hour = this.save.hour;
     this.day = this.save.day;
     this.playerChar.build(this.save.character);
+    this.applyFurniture();
     this.leaveCar(true);
     const p = this.save.pos ?? { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading };
     const q = { x: p.x, z: p.z };
@@ -979,6 +1014,10 @@ export class Game {
       case 'phone':
         this.updatePhone(dt);
         break;
+      case 'shop':
+        if (this.input.wasPressed('pause')) this.shop.close();
+        this.updateWorld(dt, false);
+        break;
     }
     if (this.state === 'customize') {
       this.customizer.update(dt, window.innerWidth, window.innerHeight);
@@ -1064,9 +1103,10 @@ export class Game {
       this.audio.music.setMode(this.save.settings.muted && this.audio.music.mode === 'off' ? 'off' : inside?.music ?? 'city');
     }
     // No units on the meter: light don go for your estate.
-    const out = powerOut(this.save.home);
-    if (HOME_LIGHTS.mat) HOME_LIGHTS.mat.userData.glowStrength = out ? 0 : 1.5;
-    if (out && !this.indoor && inEstate(p.x, p.z, 30)) this.blackout = Math.max(this.blackout, 0.5);
+    const out = homeDark(this.save.home, this.day);
+    if (HOME_LIGHTS.mat) HOME_LIGHTS.mat.userData.glowStrength = out ? 0 : this.save.home.furniture.includes('chandelier') ? 2.4 : 1.5;
+    if (out && !this.indoor && powerOut(this.save.home) && inEstate(p.x, p.z, 30)) this.blackout = Math.max(this.blackout, 0.5);
+    if (inside?.id === 'home') this.dayNight.indoor = out ? 'dark' : 'hall';
     if (this.blackout > 0) this.blackout -= dt;
     const bo = worldUniforms.uBlackout.value;
     worldUniforms.uBlackout.value = bo + ((this.blackout > 0 ? 1 : 0) - bo) * Math.min(1, dt * 4);
@@ -1198,6 +1238,7 @@ export class Game {
       this.hud.setSpeed(null);
       const npc = this.nearestNpc(this.player.x, this.player.z, 3.2);
       const car = this.indoor ? null : this.nearestCar(this.player.x, this.player.z, 3.8);
+      this.nearCarNow = !!car;
       const portal = this.nearestPortal(this.player.x, this.player.z, 2.6);
       // Walking into an exit door takes you outside (no more stepping into the void).
       if (portal && portal.id.endsWith('-out') && !this.fading && Math.hypot(portal.x - this.player.x, portal.z - this.player.z) < 2.4 && this.player.speed > 0.5) {
@@ -1278,7 +1319,7 @@ export class Game {
     this.hud.setStats(this.save.stats.money, this.save.stats.clout, this.hour, this.day);
     this.hud.setPrompt(prompt?.action ?? null, prompt?.text ?? '');
     this.hud.updateHints(this.save.settings.showHints, this.car !== null);
-    this.touchUi.setContext(this.car !== null, prompt?.action === 'give' ? null : prompt?.touch ?? null, this.giveTarget && !this.car ? 'Give' : null);
+    this.touchUi.setContext(this.car !== null, prompt?.action === 'give' ? null : prompt?.touch ?? null, this.giveTarget && !this.car ? (this.save.waza > 0 ? 'Sell' : 'Give') : null, this.nearCarNow);
     this.updateQuick(p.x, p.z);
     this.minimapTimer -= dt;
     if (this.minimapTimer <= 0) {
@@ -1294,7 +1335,8 @@ export class Game {
     // Auto quality: drop a tier if the device struggles.
     if (this.save.settings.quality === 'auto' && this.autoDowngrades < 2) {
       const fps = this.sampler.sample(dt);
-      if (fps !== null && fps < 42 && this.tier !== 'low') {
+      // Phones keep high quality unless the frame rate is really poor.
+      if (fps !== null && fps < (this.touch ? 22 : 42) && this.tier !== 'low') {
         this.autoDowngrades++;
         this.applyTier(lowerTier(this.tier));
         this.hud.notify(`Graphics set to ${this.tier} for smoother play`, 'info');
@@ -1455,6 +1497,79 @@ export class Game {
 
 
   // ------------------------------------------------------- home & hustle
+
+  /** Show bought furniture, add its colliders once. */
+  private applyFurniture(): void {
+    const owned = this.save.home.furniture;
+    for (const f of FURNITURE) {
+      const mesh = HOUSE_MESHES[f.id];
+      if (mesh) mesh.visible = owned.includes(f.id);
+      if (owned.includes(f.id) && f.solid && !this.furnitureSolid.has(f.id)) {
+        this.furnitureSolid.add(f.id);
+        const [x0, z0, x1, z1, hh] = f.solid;
+        this.world.addBox(x0, z0, x1, z1, hh);
+      }
+    }
+    if (HOUSE_MESHES.mattress) HOUSE_MESHES.mattress.visible = !owned.includes('bed');
+  }
+
+  private buyFurniture(f: Furniture): string | null {
+    const h = this.save.home;
+    if (h.furniture.includes(f.id)) return 'You get am already.';
+    if (f.id === 'ps5' && !h.furniture.includes('tv')) return 'Buy the TV first. PS5 no go work on wall.';
+    if (this.save.stats.money < f.price) return 'Insufficient balance. Hustle small first.';
+    h.furniture.push(f.id);
+    this.save.stats = applyEffects(this.save.stats, { money: -f.price, clout: f.clout });
+    this.addTx(`Jumia: ${f.name}`, -f.price);
+    this.audio.coin();
+    this.applyFurniture();
+    if (h.furniture.length === FURNITURE.length) window.setTimeout(() => this.addMsg('Mummy ❤️', 'I see your house for WhatsApp status. My child don arrive! 🙌🏾'), 1500);
+    this.persist();
+    return null;
+  }
+
+  private houseSpot(spot: NpcSpot): void {
+    const h = this.save.home;
+    const has = (id: string) => h.furniture.includes(id);
+    const dark = homeDark(h, this.day);
+    if (spot.id === 'home-laptop') {
+      this.state = 'shop';
+      this.unlockPointer();
+      this.hud.setVisible(false);
+      this.touchUi.setVisible(false);
+      this.player.vx = this.player.vz = 0;
+      this.shop.show(h.furniture, () => this.save.stats.money, (f) => this.buyFurniture(f));
+      return;
+    }
+    if (spot.id === 'home-wardrobe') return this.openWardrobe();
+    if (spot.id === 'home-bed') {
+      const bed = has('bed');
+      const cool = has('ac') && !dark;
+      this.customDialogue(spot, 'Bedroom', 'Your bed', [bed ? 'Your queen bed dey call you.' : 'Na foam mattress for floor be your bed for now. Buy a bed on your laptop.'], [
+        { text: 'Sleep till morning', run: () => ({ text: bed ? (cool ? 'AC dey hum, bed soft like cloud. Best sleep ever!' : 'You sleep well for your new bed.') : 'Your back dey pain you small, but sleep na sleep.', tags: this.applyOutcome({ text: '', effects: { sleep: true, clout: (bed ? 2 : 0) + (cool ? 1 : 0) - (dark && !bed ? 1 : 0) } }) }) },
+        { text: 'Nap (2 hours)', run: () => ({ text: 'Short nap. You wake up fresh.', tags: this.applyOutcome({ text: '', effects: { timeSkip: 2 } }) }) },
+        { text: 'Not now', run: () => ({ text: 'Later.' }) },
+      ]);
+      return;
+    }
+    if (spot.id === 'home-couch') {
+      const tv = has('tv') && !dark;
+      this.customDialogue(spot, 'Living Room', 'Your living room', [has('tv') ? (dark ? 'TV dey there but NEPA no gree. Buy units or gen.' : 'Remote dey your hand. Wetin you wan watch?') : 'No TV yet. The wall dey look you. (Buy one on your laptop.)'], [
+        { text: 'Watch Super Eagles / Nollywood (2h)', locked: tv ? undefined : 'Need a TV and light', run: () => ({ text: 'Super Eagles score! You jump up from the couch shouting "GOAL!"', tags: this.applyOutcome({ text: '', effects: { timeSkip: 2, clout: 1 } }) }) },
+        { text: 'Play FIFA on PS5 (2h)', locked: has('ps5') && tv ? undefined : 'Need a PS5, TV and light', run: () => ({ text: 'You beat your guys 5–0 online. Them dey insult you for group chat.', tags: this.applyOutcome({ text: '', effects: { timeSkip: 2, clout: 2 } }) }) },
+        { text: 'Relax small', run: () => ({ text: has('couch') ? 'You sink inside your leather couch. Big man vibes.' : 'You sit for plastic chair. E dey do.', tags: this.applyOutcome({ text: '', effects: { timeSkip: 1 } }) }) },
+      ]);
+      return;
+    }
+    if (spot.id === 'home-fridge') {
+      const cold = has('fridge') && !dark;
+      this.customDialogue(spot, 'Kitchen', 'Your kitchen', [has('fridge') ? (cold ? 'Fridge full: Maltina, zobo, jollof from Sunday.' : 'Fridge no dey cold. NEPA!') : 'Gas cooker and one pot of beans. No fridge yet.'], [
+        { text: 'Cold Maltina + leftover jollof', locked: has('fridge') ? undefined : 'Need a fridge', run: () => ({ text: cold ? 'Cold Maltina hit different. Belle sweet.' : 'Everything don warm. You still chop am.', tags: this.applyOutcome({ text: '', effects: { timeSkip: 0.5, clout: cold ? 1 : 0 } }) }) },
+        { text: 'Cook Indomie and egg (₦800)', locked: this.save.stats.money < 800 ? 'Need ₦800' : undefined, run: () => ({ text: 'Chef! Indomie with egg and pepper. Student staple.', tags: this.applyOutcome({ text: '', effects: { money: -800, timeSkip: 0.5 } }, 'Groceries') }) },
+        { text: 'Leave', run: () => ({ text: 'Later.' }) },
+      ]);
+    }
+  }
   private homeStatus(): string {
     const h = this.save.home;
     const owed = weeksOwed(h, this.day);
@@ -1479,6 +1594,12 @@ export class Game {
     if (h.units > 0 && h.units < 5 && !h.warnedLow) {
       h.warnedLow = true;
       this.addMsg('AEDC', `Low units! Your meter get ${h.units.toFixed(1)} kWh left. Buy token before light go off.`);
+    }
+    if (h.units <= 0 && h.furniture.includes('gen') && !h.furniture.includes('solar') && h.genDay !== this.day && this.save.stats.money >= 2000) {
+      h.genDay = this.day;
+      this.save.stats = applyEffects(this.save.stats, { money: -2000 });
+      this.addTx('Generator fuel', -2000);
+      this.addMsg('Gen', 'No light, so your gen don start. ₦2,000 fuel for today. Neighbours dey vex 😅');
     }
     if (h.units <= 0 && !h.warnedOut) {
       h.warnedOut = true;
@@ -1506,11 +1627,12 @@ export class Game {
   }
 
   private homeDoor(spot: NpcSpot): void {
-    const out = powerOut(this.save.home);
+    const out = homeDark(this.save.home, this.day);
     const almajiri = this.role?.id === 'almajiri';
     this.customDialogue(spot, almajiri ? "Boys' Quarters" : 'Home Sweet Home', 'Your house', [
       out ? 'You open the door. Everywhere dark and hot. NEPA units don finish!' : almajiri ? 'Mallam arrange small room for you for the boys\' quarters. E clean.' : 'You open the door. Fan dey blow, fridge dey hum. Home sweet home.',
     ], [
+      { text: 'Go inside 🏠', run: () => { this.pendingAfterDialogue = () => this.fadeTeleport(1476, 260.5, Math.PI); return { text: 'You enter your house.' }; } },
       { text: 'Sleep till morning', run: () => ({ text: out ? 'Heat and mosquito no let you rest. You wake up tired.' : 'You sleep like baby. Morning don come.', tags: this.applyOutcome({ text: '', effects: { sleep: true, clout: out ? -1 : 0 } }) }) },
       { text: 'Change clothes', run: () => ({ text: 'You open your wardrobe…', tags: this.applyOutcome({ text: '', effects: { customize: true } }) }) },
       { text: 'Rest small (2 hours)', run: () => ({ text: out ? 'You fan yourself with newspaper for two hours.' : 'You watch Nollywood for two hours. Refreshed.', tags: this.applyOutcome({ text: '', effects: { timeSkip: 2 } }) }) },
@@ -1682,6 +1804,7 @@ export class Game {
     if (spot.id === 'estate-meter') return this.meter(spot);
     if (spot.id === 'estate-manager') return this.estateOffice(spot);
     if (spot.id === 'waza-plug') return this.wazaPlug(spot);
+    if (spot.id.startsWith('home-')) return this.houseSpot(spot);
     const ev = this.events.get(spot.eventId);
     if (!ev) return;
     const ready = this.events.forNpc(spot.eventId, this.eventCtx(), this.playTime);

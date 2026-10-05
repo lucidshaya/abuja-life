@@ -83,7 +83,7 @@ export class DayNight {
   private skyMat: THREE.ShaderMaterial;
   night = 0;
   /** Indoor lighting override while the player is inside a building. */
-  indoor: 'mall' | 'club' | 'hall' | null = null;
+  indoor: 'mall' | 'club' | 'hall' | 'dark' | null = null;
   /** Real seconds per in-game hour. */
   secondsPerHour = 60;
 
@@ -174,7 +174,16 @@ export class DayNight {
     if (this.indoor) {
       // Interiors: fixed artificial light regardless of the time of day.
       this.sun.position.copy(focus).add(new THREE.Vector3(20, 120, 40));
-      if (this.indoor === 'club') {
+      if (this.indoor === 'dark') {
+        // Your house with NEPA gone: only a little light from the windows.
+        this.hemi.color.setHex(0x8a94b8);
+        this.hemi.groundColor.setHex(0x1a1a24);
+        this.hemi.intensity = 0.32;
+        this.sun.color.setHex(0x9aa8d0);
+        this.sun.intensity = 0.12;
+        this.fill.color.setHex(0x404a70);
+        this.fill.intensity = 0.15;
+      } else if (this.indoor === 'club') {
         this.hemi.color.setHex(0x9b6bff);
         this.hemi.groundColor.setHex(0x301040);
         this.hemi.intensity = 0.9;

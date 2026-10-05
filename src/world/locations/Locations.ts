@@ -16,6 +16,7 @@ export interface Interior {
 }
 
 export const INTERIORS: Interior[] = [
+  { id: 'home', name: 'Your house', tagline: 'Home sweet home. Furnish am small small.', rect: { x0: 1460, z0: 240, x1: 1492, z1: 264 }, light: 'hall', music: 'city' },
   { id: 'mall', name: 'Jabi Lake Mall', tagline: 'AC, shopping and small chops. Enjoyment don land.', rect: { x0: 1400, z0: -60, x1: 1540, z1: 40 }, light: 'mall', music: 'city' },
   { id: 'cage', name: 'The Cage', tagline: 'Amapiano till morning. No sleeping for here.', rect: { x0: 1400, z0: 180, x1: 1446, z1: 216 }, light: 'club', music: 'club' },
   { id: 'lt1', name: 'Lecture Theatre 1', tagline: 'Sit down. Attendance dey count.', rect: { x0: 1600, z0: -20, x1: 1640, z1: 12 }, light: 'hall', music: 'city' },
@@ -40,6 +41,8 @@ export interface Portal {
 }
 
 export const PORTALS: Portal[] = [
+  // Your house (enter through the front door dialogue)
+  { id: 'home-out', label: 'Go outside', x: 1476, z: 262.5, to: { x: -204.5, z: -287, heading: Math.PI / 2 } },
   // Jabi Lake Mall
   { id: 'mall-in', label: 'Enter Jabi Lake Mall', x: -152, z: -93, to: { x: 1470, z: 33, heading: Math.PI } },
   { id: 'mall-out', label: 'Exit to the car park', x: 1470, z: 37.5, to: { x: -148.5, z: -93, heading: Math.PI / 2 } },

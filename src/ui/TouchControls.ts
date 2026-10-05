@@ -62,7 +62,8 @@ export class TouchControls {
       (this.hornBtn = mk('horn', 'Horn', 'horn', false)),
       (this.giveBtn = mk('give', 'Give', 'give', false)),
     );
-    const top = h('div.ttop', {}, mk('dance', 'Dance', 'dance', false), mk('phone', 'Phone', 'phone', false), mk('map', 'Map', 'map', false), mk('pause', 'II', 'pause', false));
+    const top = h('div.ttop', {}, mk('dance', '💃🏾', 'dance', false), mk('map', '🗺️', 'map', false), mk('phone', '📱', 'phone', false), mk('pause', 'II', 'pause', false));
+    for (const [k, l] of [['dance', 'Dance'], ['map', 'Map'], ['phone', 'Phone'], ['pause', 'Pause']] as const) this.btns[k].setAttribute('aria-label', l);
     this.root.append(this.lookZone, this.stickZone, cluster, top);
 
     this.stickZone.addEventListener('pointerdown', (e) => {
@@ -148,8 +149,11 @@ export class TouchControls {
     }
   }
 
-  setContext(inCar: boolean, action: string | null, give: string | null = null): void {
+  setContext(inCar: boolean, action: string | null, give: string | null = null, nearCar = false): void {
     show(this.giveBtn, !!give && !inCar);
+    // Only show the Car button when there's a car to enter (or you're driving).
+    show(this.btns.car, inCar || nearCar);
+    if (give) this.giveBtn.querySelector('span')!.textContent = give;
     this.btns.jump.querySelector('span')!.textContent = inCar ? 'Brake' : 'Jump';
     this.btns.sprint.querySelector('span')!.textContent = inCar ? 'Nitro' : 'Run';
     this.btns.car.querySelector('span')!.textContent = inCar ? 'Exit' : 'Car';

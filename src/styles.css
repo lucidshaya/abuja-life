@@ -617,3 +617,72 @@ body.touch-mode .qa-list { max-height: 38vh; }
 .ph-widget.home { margin-top: auto; margin-bottom: -8px; padding: 10px 14px; }
 .ph-widget.home + .ph-widget { margin-top: 0; }
 .ph-widget b.small { font: 700 12.5px var(--body); text-align: right; }
+
+/* ---------- Furniture shop ---------- */
+#shop { z-index: 34; }
+.sh-card { width: min(760px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; gap: 10px; background: var(--glass-2); border: 1px solid var(--line); border-radius: 20px; padding: 16px; }
+.sh-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.sh-title { font: 800 22px var(--head); color: #fff; }
+.sh-sub { color: #bfe9cf; font-weight: 600; font-size: 13.5px; }
+.sh-toast { background: rgba(89, 226, 143, 0.18); color: var(--good); border-radius: 10px; padding: 8px 12px; font-weight: 700; }
+.sh-list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; touch-action: pan-y; }
+.sh-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); }
+.sh-row.owned { opacity: 0.6; }
+.sh-ic { font-size: 24px; width: 32px; text-align: center; }
+.sh-mid { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.sh-name { font: 800 15px var(--head); color: #fff; }
+.sh-desc { font-size: 12.5px; opacity: 0.75; }
+.sh-price { font: 800 14px var(--head); color: var(--gold); white-space: nowrap; }
+.sh-row .btn { min-width: 92px; text-align: center; }
+@media (max-width: 640px), (max-height: 520px) { .sh-desc { display: none; } .sh-card { padding: 10px; } .sh-title { font-size: 17px; } }
+
+#dancebtn {
+  position: fixed; z-index: 40; top: calc(14px + var(--safe-t)); right: calc(304px + var(--safe-r)); width: 46px; height: 46px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.7); background: var(--glass); color: #fff; display: none; align-items: center; justify-content: center; padding: 0; font-size: 22px; cursor: pointer;
+}
+body.playing #dancebtn { display: flex; }
+body.touch-mode #dancebtn { display: none !important; }
+#dancebtn.on { background: rgba(242, 194, 48, 0.85); }
+@media (max-width: 760px), (max-height: 520px) { #dancebtn { right: calc(236px + var(--safe-r)); width: 40px; height: 40px; font-size: 19px; } }
+
+/* ---------- Mobile layout (touch) ---------- */
+body.touch-mode .look-zone { inset: 0 0 0 44%; }
+body.touch-mode .stick-zone { top: 22%; width: 44%; }
+body.touch-mode .tcluster { right: calc(16px + var(--safe-r)); bottom: calc(14px + var(--safe-b)); width: 250px; height: 200px; }
+body.touch-mode .tbtn { font-size: 13px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+body.touch-mode .tbtn.jump { width: 76px; height: 76px; right: 0; bottom: 0; }
+body.touch-mode .tbtn.sprint { width: 62px; height: 62px; right: 90px; bottom: 6px; }
+body.touch-mode .tbtn.action { width: 66px; height: 66px; right: 6px; bottom: 92px; }
+body.touch-mode .tbtn.car { width: 56px; height: 56px; right: 92px; bottom: 84px; }
+body.touch-mode .tbtn.give { width: 52px; height: 52px; right: 162px; bottom: 90px; }
+body.touch-mode .tbtn.horn { width: 52px; height: 52px; right: 168px; bottom: 10px; }
+/* Top bar: Dance · Map · Phone · Pause sit in one tidy row left of the minimap. */
+body.touch-mode .ttop { top: calc(12px + var(--safe-t)); right: calc(140px + var(--safe-r)); gap: 8px; }
+body.touch-mode .ttop .tbtn { position: relative; width: 44px; height: 44px; font-size: 19px; border-width: 2px; }
+body.touch-mode .ttop .tbtn.pause { font: 900 15px var(--head); }
+body.touch-mode #mute { top: calc(12px + var(--safe-t)); right: calc(348px + var(--safe-r)); width: 44px; height: 44px; }
+body.touch-mode .minimap-wrap { width: 118px; height: 118px; top: calc(10px + var(--safe-t)); right: calc(12px + var(--safe-r)); }
+body.touch-mode #quick { top: calc(138px + var(--safe-t)); right: calc(10px + var(--safe-r)); width: 190px; }
+body.touch-mode .stats { padding: 7px 10px; min-width: 0; max-width: 42vw; }
+body.touch-mode .money { font-size: 20px; }
+body.touch-mode .clout, body.touch-mode .clock { font-size: 12px; }
+body.touch-mode .district-label { font-size: 11px; }
+body.touch-mode .feed { top: calc(112px + var(--safe-t)); max-width: 40vw; }
+body.touch-mode .note { font-size: 12.5px; padding: 5px 10px; }
+body.touch-mode .prompt { bottom: calc(18px + var(--safe-b)); font-size: 14px; padding: 8px 14px; max-width: 34vw; white-space: normal; text-align: center; }
+body.touch-mode .speedo { bottom: calc(64px + var(--safe-b)); }
+body.touch-mode .speedo b { font-size: 38px; }
+body.touch-mode .toast .t { font-size: clamp(22px, 5vw, 40px); }
+body.touch-mode .toast .s { font-size: 13px; }
+body.touch-mode .stick-hint { width: 96px; height: 96px; bottom: calc(36px + var(--safe-b)); left: calc(36px + var(--safe-l)); }
+/* Narrow phones: the top bar wraps under the minimap instead of crashing into the stats. */
+@media (max-width: 700px) {
+  body.touch-mode .ttop { top: calc(136px + var(--safe-t)); right: calc(10px + var(--safe-r)); flex-direction: column; }
+  body.touch-mode #mute { top: calc(136px + var(--safe-t)); right: calc(62px + var(--safe-r)); }
+  body.touch-mode #quick { top: calc(10px + var(--safe-t)); right: calc(140px + var(--safe-r)); width: 170px; }
+}
+@media (max-height: 360px) {
+  body.touch-mode .tbtn.jump { width: 66px; height: 66px; }
+  body.touch-mode .tbtn.action { bottom: 80px; }
+  body.touch-mode .tbtn.car { bottom: 74px; }
+}

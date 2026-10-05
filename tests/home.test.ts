@@ -55,3 +55,28 @@ describe('home bills', () => {
     }
   });
 });
+
+describe('house furniture', () => {
+  it('every item has a price and fits inside the house', async () => {
+    const { FURNITURE, HOUSE } = await import('../src/player/Home');
+    const ids = new Set<string>();
+    for (const f of FURNITURE) {
+      expect(ids.has(f.id)).toBe(false);
+      ids.add(f.id);
+      expect(f.price).toBeGreaterThan(0);
+      if (f.solid) {
+        const [x0, z0, x1, z1] = f.solid;
+        expect(x0 >= HOUSE.x0 && x1 <= HOUSE.x1 && z0 >= HOUSE.z0 && z1 <= HOUSE.z1, f.id).toBe(true);
+      }
+    }
+  });
+
+  it('solar means no more NEPA wahala; gen fuel keeps light that day', async () => {
+    const { homeDark, newHome } = await import('../src/player/Home');
+    const h = { ...newHome(), units: 0 };
+    expect(homeDark(h, 3)).toBe(true);
+    expect(homeDark({ ...h, furniture: ['gen'], genDay: 3 }, 3)).toBe(false);
+    expect(homeDark({ ...h, furniture: ['gen'], genDay: 2 }, 3)).toBe(true);
+    expect(homeDark({ ...h, furniture: ['solar'] }, 3)).toBe(false);
+  });
+});

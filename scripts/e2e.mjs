@@ -374,6 +374,31 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   const meterAfter = await G(page, () => ({ units: window.__abuja.save.home.units, money: window.__abuja.save.stats.money }));
   check('estate: buying a ₦5,000 token loads 25 units', meterAfter.units >= 24.9 && mb - meterAfter.money === 5000, JSON.stringify(meterAfter));
   await pressUntil(page, 'KeyE', async () => !(await page.isVisible('#dialogue')), 8);
+  // ---- House interior + furniture shop ----
+  await G(page, () => { const g = window.__abuja; g.save.stats.money += 500000; g.teleport(-205.2, -287, -Math.PI / 2); });
+  await sleep(600);
+  await pressUntil(page, 'KeyE', () => page.isVisible('#dialogue'), 3);
+  await pressUntil(page, 'KeyE', () => page.isVisible('.d-choice'), 6);
+  await page.keyboard.press('Digit1');
+  await sleep(400);
+  await pressUntil(page, 'KeyE', async () => !(await page.isVisible('#dialogue')), 8);
+  await sleep(1200);
+  check('house: "Go inside" enters your house', await G(page, () => window.__abuja.indoor?.id === 'home'));
+  await page.screenshot({ path: `${OUT}/40-house-empty.png` });
+  await G(page, () => window.__abuja.teleport(1488, 257.4, 0));
+  await sleep(500);
+  await pressUntil(page, 'KeyE', () => page.isVisible('#shop'), 3);
+  check('house: laptop opens the furniture shop', await page.isVisible('#shop'));
+  await page.screenshot({ path: `${OUT}/41-furniture-shop.png` });
+  await page.click('.sh-row:has-text("Persian rug") .btn');
+  await page.click('.sh-row:has-text("couch") .btn');
+  await sleep(300);
+  check('house: bought furniture appears', await G(page, () => { const g = window.__abuja; return g.save.home.furniture.includes('rug') && g.save.home.furniture.includes('couch'); }));
+  await page.click('#shop .sh-head .btn');
+  await sleep(300);
+  await G(page, () => { const g = window.__abuja; g.teleport(1478, 262, Math.PI * 1.15); g.rig.yaw = Math.PI * 1.15; });
+  await sleep(1500);
+  await page.screenshot({ path: `${OUT}/42-house-furnished.png` });
   // ---- Waza: buy from the plug at Banex, sell to people ----
   await G(page, () => { const g = window.__abuja; g.hour = 20; g.save.stats.money += 20000; g.teleport(-70, 91.8, Math.PI); });
   await sleep(800);
@@ -485,21 +510,28 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await sleep(300);
   check('mobile: Talk button appears near NPC', await page.isVisible('.tbtn.action'));
   await page.tap('.tbtn.action');
-  await sleep(600);
+  await page.waitForSelector('#dialogue:not(.hidden)', { timeout: 8000 }).catch(() => {});
   check('mobile: tapping Talk opens dialogue', await page.isVisible('#dialogue'));
   await page.screenshot({ path: `${OUT}/23-mobile-dialogue.png` });
   for (let i = 0; i < 4 && !(await page.isVisible('.d-choice')); i++) { await page.tap('.d-text'); await sleep(400); }
   await page.tap('.d-choice >> nth=0');
   await sleep(400);
-  for (let i = 0; i < 5 && (await page.isVisible('#dialogue')); i++) { await page.tap('.d-next'); await sleep(450); }
+  for (let i = 0; i < 10 && (await page.isVisible('#dialogue')); i++) { await page.tap('.d-next').catch(() => {}); await sleep(600); }
   check('mobile: dialogue closes and touch controls return', !(await page.isVisible('#dialogue')) && (await page.isVisible('#touch')));
   // Car button
   await G(page, () => window.__abuja.player.teleport(-713, -234, Math.PI / 2));
-  await sleep(200);
-  await page.tap('.tbtn.car');
-  await sleep(400);
+  await page.waitForSelector('.tbtn.car:not(.hidden)', { timeout: 8000 }).catch(() => {});
+  check('mobile: Car button only shows next to a car', await page.isVisible('.tbtn.car'));
+  for (let i = 0; i < 4 && !(await pos(page)).inCar; i++) { await page.tap('.tbtn.car').catch(() => {}); await sleep(700); }
   check('mobile: Car button enters car', (await pos(page)).inCar);
   await page.screenshot({ path: `${OUT}/24-mobile-car.png` });
+  await G(page, () => { const g = window.__abuja; g.leaveCar(true); g.teleport(-470, 60, -Math.PI / 2); g.hour = 11; });
+  await sleep(1500);
+  await page.screenshot({ path: `${OUT}/24b-mobile-nile.png` });
+  await page.tap('#quick .qa-head');
+  await sleep(500);
+  await page.screenshot({ path: `${OUT}/24c-mobile-quick.png` });
+  check('mobile: quick panel expands with a tap', await page.isVisible('#quick .qa-item'));
   const f = await fps(page);
   check('mobile: renders frames', f > 1, `${f.toFixed(1)} fps`);
   check('mobile: no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
