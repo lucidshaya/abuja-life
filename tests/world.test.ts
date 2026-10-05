@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CELL, SEND_IDLE, WorldNet, cellKey, cellsAround, parseState, sanitizeLook, type LocalState } from '../src/online/WorldNet';
 import { ESTATE, PLOTS, PLOTS_PER_BLOCK, plotFor, useHousePlot } from '../src/player/Home';
 import { defaultCharacter } from '../src/player/CharacterConfig';
-import type { WorldTransport } from '../src/online/types';
+import { formatVisits, type WorldTransport } from '../src/online/types';
 
 function fakeTransport() {
   const joined = new Map<string, (e: string, p: Record<string, unknown>) => void>();
@@ -172,5 +172,14 @@ describe('estate houses', () => {
     expect(ESTATE.house).toEqual({ x: PLOTS[4].x, z: PLOTS[4].z });
     useHousePlot(0);
     expect(ESTATE.spawn).toEqual({ x: -204.5, z: -287, heading: -Math.PI / 2 });
+  });
+});
+
+describe('visit counter', () => {
+  it('shows exact numbers up to 9,999, then short ones', () => {
+    expect(formatVisits(0)).toBe('0');
+    expect(formatVisits(1234)).toBe('1,234');
+    expect(formatVisits(12345)).toBe('12.3K');
+    expect(formatVisits(2_500_000)).toBe('2.5M');
   });
 });

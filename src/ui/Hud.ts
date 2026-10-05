@@ -2,6 +2,20 @@ import type { Action, Bindings, Device } from '../core/Input';
 import { keyLabel } from '../core/Input';
 import { dayLabel, formatClock } from '../world/DayNight';
 import { $, h, naira, show } from './dom';
+import { formatVisits } from '../online/types';
+
+const EYE_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.4 8.6 1 12c1.4 3.4 5.5 7 11 7s9.6-3.6 11-7c-1.4-3.4-5.5-7-11-7zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>';
+
+/** "● 11 players online · 👁 1,234": the live count plus all-time visits (hidden until the server has a number). */
+export function renderOnline(el: HTMLElement, online: number, visits: number | null): void {
+  el.innerHTML = '';
+  el.append(h('span.on-count', { text: `${online} players online` }));
+  if (visits === null) return;
+  const v = h('span.visits', { title: `${visits.toLocaleString('en-NG')} all-time visits`, 'aria-label': `${visits.toLocaleString('en-NG')} all-time visits` });
+  v.innerHTML = EYE_SVG;
+  v.append(h('span', { text: formatVisits(visits) }));
+  el.append(v);
+}
 
 const PAD_LABEL: Partial<Record<Action, string>> = { interact: 'X', vehicle: 'Y', jump: 'A', sprint: 'B', map: 'View', pause: 'Menu', horn: 'RB' };
 
@@ -70,8 +84,8 @@ export class Hud {
     this.lastClout = NaN;
   }
 
-  setOnline(n: number): void {
-    this.online.textContent = `${n} players online`;
+  setOnline(n: number, visits: number | null = null): void {
+    renderOnline(this.online, n, visits);
   }
 
   setRole(text: string | null, color = '#f2c230'): void {

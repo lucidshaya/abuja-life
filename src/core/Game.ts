@@ -52,7 +52,7 @@ import { clearTrack, loadTrack, saveTrack } from './TrackStore';
 import { CAR_MODELS } from '../player/Vehicle';
 import { Customizer } from '../ui/Customizer';
 import { Dialogue } from '../ui/Dialogue';
-import { Hud } from '../ui/Hud';
+import { Hud, renderOnline } from '../ui/Hud';
 import { Menus } from '../ui/Menus';
 import { FullMap, MapImage, Minimap, npcMarkers, type MapMarker } from '../ui/Minimap';
 import { TouchControls } from '../ui/TouchControls';
@@ -284,6 +284,7 @@ export class Game {
     await nextFrame();
     this.social = new Social(await createBackend());
     this.wireSocial();
+    void this.loadVisits();
     const me = await this.social.backend.session().catch(() => null);
     this.clock.start();
     this.renderer.setAnimationLoop(() => this.tick());
@@ -656,8 +657,28 @@ export class Game {
       el.append(h('span.ac-name', { text: '@' + name }), out);
     }
     const n = this.social?.online ?? 10;
-    $('onlinepill').textContent = `${n} players online`;
-    this.hud.setOnline(n);
+    renderOnline($('onlinepill'), n, this.visits);
+    this.hud.setOnline(n, this.visits);
+  }
+
+  /** All-time visits: count this visit once per browser tab, then refresh the number every minute. */
+  private visits: number | null = null;
+  private async loadVisits(): Promise<void> {
+    let first = false;
+    try {
+      first = !sessionStorage.getItem('abuja-life-visited');
+      if (first) sessionStorage.setItem('abuja-life-visited', '1');
+    } catch {
+      /* storage blocked: just show the number */
+    }
+    const show = async (record: boolean) => {
+      const v = await this.social.backend.visits(record).catch(() => null);
+      if (v === null) return;
+      this.visits = v;
+      this.syncAccount();
+    };
+    await show(first);
+    window.setInterval(() => void show(false), 60000);
   }
 
   // ------------------------------------------------------- other players

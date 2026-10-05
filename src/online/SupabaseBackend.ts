@@ -154,6 +154,14 @@ export class SupabaseBackend implements OnlineBackend {
       });
   }
 
+  /** All-time visit counter (supabase/schema.sql: record_visit / visit_count). */
+  async visits(record: boolean): Promise<number | null> {
+    const { data, error } = await this.sb.rpc(record ? 'record_visit' : 'visit_count');
+    if (error || data === null || data === undefined) return null;
+    const n = Number(data);
+    return Number.isFinite(n) ? n : null;
+  }
+
   /** Houses go by sign-up order: your position among all players picks your block and plot. */
   async estate(): Promise<EstateInfo | null> {
     const id = await this.uid();

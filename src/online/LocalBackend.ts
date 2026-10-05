@@ -108,6 +108,10 @@ export class LocalBackend implements OnlineBackend {
   transport(): WorldTransport | null {
     return null;
   }
+  /** Offline: no shared counter. */
+  async visits(): Promise<number | null> {
+    return null;
+  }
 }
 
 interface MockDb {
@@ -274,6 +278,12 @@ export class MockBackend implements OnlineBackend {
       return id ? { id, username: db.users[id].username! } : null;
     });
     return { block, plot: rank % PLOTS_PER_BLOCK, neighbours };
+  }
+  /** Test server: a counter shared by all tabs. */
+  async visits(record: boolean): Promise<number | null> {
+    const n = read<number>('abuja-mock-visits', ls(), 0) + (record ? 1 : 0);
+    if (record) write('abuja-mock-visits', n, ls());
+    return n;
   }
   transport(): WorldTransport | null {
     const chan = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('abuja-mock-world') : null;

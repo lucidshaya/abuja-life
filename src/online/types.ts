@@ -86,6 +86,8 @@ export interface OnlineBackend {
   estate(): Promise<EstateInfo | null>;
   /** Live world link for seeing other players (null = offline). */
   transport(): WorldTransport | null;
+  /** All-time visits to the game (record = count this visit first). null = not available. */
+  visits(record: boolean): Promise<number | null>;
 }
 
 export const USERNAME_RE = /^[a-z0-9_]{3,16}$/;
@@ -111,6 +113,12 @@ export function emailError(e: string): string | null {
 /** What the "players online" badge shows: it starts at 10, and every real player after the first adds one. */
 export function displayedOnline(real: number): number {
   return 9 + Math.max(1, real);
+}
+
+/** "1,234" up to 9,999, then "12K", "1.2M". */
+export function formatVisits(n: number): string {
+  if (n < 10000) return Math.max(0, Math.floor(n)).toLocaleString('en-NG');
+  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 }
 
 export function cleanMessage(body: string): string {
