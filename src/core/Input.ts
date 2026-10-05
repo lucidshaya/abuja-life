@@ -6,14 +6,14 @@
 export type Action =
   | 'forward' | 'back' | 'left' | 'right'
   | 'sprint' | 'jump' | 'interact' | 'vehicle'
-  | 'map' | 'pause' | 'horn' | 'camera'
-  | 'choice1' | 'choice2' | 'choice3';
+  | 'map' | 'pause' | 'horn' | 'camera' | 'mute' | 'phone' | 'dance' | 'give' | 'cursor'
+  | 'choice1' | 'choice2' | 'choice3' | 'choice4';
 
 export type Device = 'keyboard' | 'touch' | 'gamepad';
 
 export type Bindings = Record<Action, string[]>;
 
-export const REBINDABLE: Action[] = ['forward', 'back', 'left', 'right', 'sprint', 'jump', 'interact', 'vehicle', 'map', 'horn', 'camera'];
+export const REBINDABLE: Action[] = ['forward', 'back', 'left', 'right', 'sprint', 'jump', 'interact', 'vehicle', 'map', 'horn', 'camera', 'mute', 'phone', 'dance', 'give', 'cursor'];
 
 export const ACTION_LABELS: Record<Action, string> = {
   forward: 'Move forward / Accelerate',
@@ -28,9 +28,15 @@ export const ACTION_LABELS: Record<Action, string> = {
   pause: 'Pause',
   horn: 'Horn (pom pom!)',
   camera: 'Reset camera',
+  mute: 'Mute / unmute sound',
+  phone: 'Phone',
+  dance: 'Dance / emotes',
+  give: 'Give cash to someone',
+  cursor: 'Free the mouse (click quick actions)',
   choice1: 'Dialogue choice 1',
   choice2: 'Dialogue choice 2',
   choice3: 'Dialogue choice 3',
+  choice4: 'Dialogue choice 4',
 };
 
 export const DEFAULT_BINDINGS: Bindings = {
@@ -46,9 +52,15 @@ export const DEFAULT_BINDINGS: Bindings = {
   pause: ['Escape', 'KeyP'],
   horn: ['KeyH'],
   camera: ['KeyC'],
+  mute: ['KeyN'],
+  phone: ['KeyQ'],
+  dance: ['KeyB'],
+  give: ['KeyG'],
+  cursor: ['KeyT'],
   choice1: ['Digit1', 'Numpad1'],
   choice2: ['Digit2', 'Numpad2'],
   choice3: ['Digit3', 'Numpad3'],
+  choice4: ['Digit4', 'Numpad4'],
 };
 
 export function mergeBindings(custom: Partial<Bindings> | undefined): Bindings {

@@ -3,13 +3,13 @@ import type { Dynamic } from '../core/Collision';
 import { mulberry32 } from '../core/rng';
 import { Character } from '../player/Character';
 import { CLOTH_COLORS, defaultCharacter, randomCharacter, type CharacterConfig } from '../player/CharacterConfig';
-import { NPC_SPOTS, ROADS, type NpcSpot, type RoadSeg } from './MapData';
+import { NPC_SPOTS, ROADS, type NpcLook, type NpcSpot, type RoadSeg } from './MapData';
 
 const ci = (hex: number) => Math.max(0, CLOTH_COLORS.indexOf(hex));
 
-export function lookConfig(look: NpcSpot['look']): CharacterConfig {
+export function lookConfig(look: NpcLook): CharacterConfig {
   const base = defaultCharacter();
-  const L: Record<NpcSpot['look'], Partial<CharacterConfig>> = {
+  const L: Record<NpcLook, Partial<CharacterConfig>> = {
     vio: { outfit: 'suit', primary: ci(0x123e7c), secondary: ci(0x111111), headwear: 'cap', hair: 'lowcut', build: 'heavy', skin: 1 },
     mallam: { outfit: 'kaftan', primary: ci(0xffffff), secondary: ci(0xf2e6c9), headwear: 'kufi', facialHair: 'beard', skin: 2 },
     mama: { outfit: 'asoebi', primary: ci(0xe8a317), secondary: ci(0x1f6b3a), pattern: 'circles', hair: 'gele', facialHair: 'none', headwear: 'none', build: 'heavy', skin: 3 },
@@ -21,7 +21,43 @@ export function lookConfig(look: NpcSpot['look']): CharacterConfig {
     boatman: { outfit: 'jersey', primary: ci(0x0f8a4b), headwear: 'cap', skin: 0, build: 'slim' },
     driver: { outfit: 'kaftan', primary: ci(0x5b5f66), secondary: ci(0x111111), headwear: 'cap', skin: 1, build: 'slim' },
     pos: { outfit: 'ankara', primary: ci(0x6c2c91), secondary: ci(0xe8a317), pattern: 'diamonds', hair: 'braids', headwear: 'none', facialHair: 'none', skin: 4 },
-    aunty: { outfit: 'asoebi', primary: ci(0xd4a62a) || ci(0xe8a317), secondary: ci(0x7a1f3d), pattern: 'waves', hair: 'gele', headwear: 'none', facialHair: 'none', build: 'heavy', skin: 3 },
+    aunty: { outfit: 'asoebi', primary: ci(0xe8a317), secondary: ci(0x7a1f3d), pattern: 'waves', hair: 'gele', headwear: 'none', facialHair: 'none', build: 'heavy', skin: 3 },
+    mallguard: { outfit: 'suit', primary: ci(0x111111), secondary: ci(0x111111), headwear: 'cap', build: 'heavy', skin: 1 },
+    cashier: { outfit: 'jersey', primary: ci(0xc0262d), hair: 'braids', facialHair: 'none', headwear: 'none', skin: 3 },
+    promo: { outfit: 'ankara', primary: ci(0xd94f8c), secondary: ci(0xffffff), pattern: 'circles', hair: 'braids', facialHair: 'none', headwear: 'none', skin: 4 },
+    chef: { outfit: 'jersey', primary: ci(0xffffff), headwear: 'kufi', build: 'heavy', skin: 2 },
+    phoneguy: { outfit: 'jersey', primary: ci(0x123e7c), headwear: 'cap', shades: true, build: 'slim', skin: 1 },
+    uniguard: { outfit: 'suit', primary: ci(0x5b5f66), secondary: ci(0x111111), headwear: 'cap', skin: 0 },
+    lecturer: { outfit: 'senator', primary: ci(0x8c5a2b), secondary: ci(0xe8a317), hair: 'bald', facialHair: 'beard', shades: true, skin: 1 },
+    librarian: { outfit: 'kaftan', primary: ci(0x6c2c91), secondary: ci(0xffffff), hair: 'hijab', facialHair: 'none', headwear: 'none', skin: 3 },
+    cafmama: { outfit: 'asoebi', primary: ci(0xf26b1d), secondary: ci(0x0f8a4b), pattern: 'diamonds', hair: 'gele', facialHair: 'none', headwear: 'none', build: 'heavy', skin: 2 },
+    captain: { outfit: 'jersey', primary: ci(0x0f8a4b), headwear: 'none', hair: 'lowcut', build: 'slim', skin: 0 },
+    sugguy: { outfit: 'senator', primary: ci(0xffffff), secondary: ci(0x0f8a4b), headwear: 'fila', skin: 2 },
+    photographer: { outfit: 'jersey', primary: ci(0x111111), headwear: 'cap', skin: 1 },
+    groom: { outfit: 'agbada', primary: ci(0x1f6b3a), secondary: ci(0xe8a317), pattern: 'plain', headwear: 'fila', skin: 2 },
+    icecream: { outfit: 'jersey', primary: ci(0x2a64c9), headwear: 'cap', skin: 0 },
+    horseman: { outfit: 'kaftan', primary: ci(0xf2e6c9), secondary: ci(0x8c5a2b), headwear: 'kufi', facialHair: 'beard', skin: 1 },
+    picnic: { outfit: 'ankara', primary: ci(0x0f8a4b), secondary: ci(0xe8a317), pattern: 'waves', headwear: 'none', skin: 3 },
+    bouncer: { outfit: 'suit', primary: ci(0x111111), secondary: ci(0x111111), hair: 'bald', shades: true, build: 'heavy', height: 'tall', skin: 0 },
+    bartender: { outfit: 'suit', primary: ci(0x111111), secondary: ci(0xc0262d), hair: 'afro', skin: 2 },
+    dj: { outfit: 'jersey', primary: ci(0x6c2c91), headwear: 'cap', shades: true, hair: 'dreads', skin: 1 },
+    agent: { outfit: 'suit', primary: ci(0x123e7c), secondary: ci(0xe8a317), hair: 'lowcut', skin: 2 },
+    // ---- Abuja2 places ----
+    waiter: { outfit: 'suit', primary: ci(0xffffff), secondary: ci(0x111111), hair: 'lowcut', skin: 2 },
+    musician: { outfit: 'senator', primary: ci(0xc0262d), secondary: ci(0x111111), headwear: 'fila', shades: true, skin: 1 },
+    operator: { outfit: 'jersey', primary: ci(0xe8a317), headwear: 'cap', build: 'slim', skin: 3 },
+    vendor: { outfit: 'iroBuba', primary: ci(0xf26b1d), secondary: ci(0x0f8a4b), pattern: 'circles', hair: 'gele', headwear: 'none', facialHair: 'none', build: 'heavy', skin: 2 },
+    receptionist: { outfit: 'suit', primary: ci(0x111111), secondary: ci(0xc9a96e), hair: 'braids', headwear: 'none', facialHair: 'none', skin: 4 },
+    activist: { outfit: 'ankara', primary: ci(0x0f8a4b), secondary: ci(0xffffff), pattern: 'stripes', hair: 'braids', headwear: 'none', facialHair: 'none', skin: 3 },
+    coach: { outfit: 'jersey', primary: ci(0x0f8a4b), hair: 'braids', headwear: 'none', facialHair: 'none', build: 'slim', skin: 2 },
+    journalist: { outfit: 'suit', primary: ci(0x2a64c9), secondary: ci(0xffffff), hair: 'lowcut', specs: true, skin: 1 },
+    senator: { outfit: 'agbada', primary: ci(0xf2e6c9), secondary: ci(0xc9a96e), pattern: 'plain', headwear: 'fila', facialHair: 'moustache', build: 'heavy', specs: true, skin: 1 },
+    star: { outfit: 'asoebi', primary: ci(0x6c2c91), secondary: ci(0xe8a317), pattern: 'waves', hair: 'braids', headwear: 'none', facialHair: 'none', shades: true, skin: 5 },
+    tout: { outfit: 'jersey', primary: ci(0xf26b1d), headwear: 'cap', build: 'slim', skin: 0 },
+    airline: { outfit: 'suit', primary: ci(0x123e7c), secondary: ci(0xc0262d), hair: 'braids', headwear: 'none', facialHair: 'none', skin: 3 },
+    customs: { outfit: 'suit', primary: ci(0x3f4a2f), secondary: ci(0x3f4a2f), headwear: 'cap', build: 'heavy', skin: 1 },
+    traveller: { outfit: 'ankara', primary: ci(0xd94f8c), secondary: ci(0xffffff), pattern: 'diamonds', hair: 'braids', headwear: 'none', facialHair: 'none', shades: true, skin: 4 },
+    none: {},
   };
   return { ...base, facialHair: 'none', ...L[look] };
 }
@@ -47,9 +83,18 @@ function markerTexture(text: string, bg: string, fg: string): THREE.Texture {
   return t;
 }
 
+/** Someone the player can interact with casually (give cash). */
+export interface Person {
+  char: Character;
+  x: number;
+  z: number;
+  hold: (seconds: number) => void;
+}
+
 export interface EventNpc {
   spot: NpcSpot;
-  char: Character;
+  /** null for interactive objects (marker only). */
+  char: Character | null;
   marker: THREE.Sprite;
 }
 
@@ -80,17 +125,23 @@ export class Npcs {
   constructor(maxWalkers: number) {
     this.roads = ROADS.filter((r) => r.kind !== 'expressway');
     for (const spot of NPC_SPOTS) {
-      const char = new Character(lookConfig(spot.look));
-      char.root.position.set(spot.x, 0, spot.z);
-      char.root.rotation.y = spot.facing;
+      const char = spot.look === 'none' ? null : new Character(lookConfig(spot.look));
+      if (char) {
+        char.root.position.set(spot.x, 0, spot.z);
+        char.root.rotation.y = spot.facing;
+        this.group.add(char.root);
+      }
       const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.readyTex, depthTest: true, transparent: true }));
       marker.scale.set(0.7, 0.7, 0.7);
       marker.position.set(spot.x, 2.5, spot.z);
-      this.group.add(char.root, marker);
+      this.group.add(marker);
       this.eventNpcs.push({ spot, char, marker });
     }
     for (let i = 0; i < maxWalkers; i++) {
-      const char = new Character(randomCharacter(this.rng), false);
+      const cfg = randomCharacter(this.rng);
+      // Some almajiri boys walk the streets with their bowls.
+      if (i % 11 === 3) Object.assign(cfg, { outfit: 'jalabiya', primary: 1, secondary: 13, headwear: 'kufi', hair: 'bald', facialHair: 'none', shoes: 'sandals', build: 'slim', height: 'short', bag: true, shades: false, specs: false, chain: false, watch: false });
+      const char = new Character(cfg, false, 'low');
       const road = this.roads[Math.floor(this.rng() * this.roads.length)];
       const w: Walker = { char, road, side: this.rng() < 0.5 ? -1 : 1, t: 0, dir: this.rng() < 0.5 ? -1 : 1, speed: 1.1 + this.rng() * 0.6, x: 0, z: 0, pause: 0 };
       this.walkers.push(w);
@@ -105,7 +156,7 @@ export class Npcs {
   }
 
   setShadows(on: boolean): void {
-    for (const n of this.eventNpcs) n.char.setShadow(on);
+    for (const n of this.eventNpcs) n.char?.setShadow(on);
   }
 
   private roadLen(r: RoadSeg): number {
@@ -140,11 +191,11 @@ export class Npcs {
       const dz = n.spot.z - pz;
       const d2 = dx * dx + dz * dz;
       const vis = d2 < cd2 * 1.6;
-      n.char.root.visible = vis;
+      if (n.char) n.char.root.visible = vis;
       n.marker.visible = vis;
       if (!vis) continue;
-      n.char.update(dt, 0);
-      n.marker.position.y = 2.45 + Math.sin(time * 3 + n.spot.x) * 0.08;
+      n.char?.update(dt, 0);
+      n.marker.position.y = (n.char ? 2.45 : 1.6) + Math.sin(time * 3 + n.spot.x) * 0.08;
       const ready = cooldownLeft(n.spot.eventId) <= 0;
       const mat = n.marker.material as THREE.SpriteMaterial;
       const tex = ready ? this.readyTex : this.waitTex;
@@ -153,7 +204,7 @@ export class Npcs {
         mat.needsUpdate = true;
       }
       // Turn to face the player when close.
-      if (d2 < 36) {
+      if (d2 < 36 && n.char) {
         const want = Math.atan2(-dx, -dz);
         n.char.root.rotation.y += Math.atan2(Math.sin(want - n.char.root.rotation.y), Math.cos(want - n.char.root.rotation.y)) * Math.min(1, dt * 5);
       }
@@ -198,6 +249,24 @@ export class Npcs {
       w.char.update(dt, w.pause > 0 ? 0 : w.speed);
       this.dynamics.push({ x: w.x, z: w.z, r: 0.3 });
     }
+  }
+
+  /** Closest visible street walker (for giving cash). Stops them for a few seconds. */
+  nearestWalker(x: number, z: number, maxD: number): Person | null {
+    let best: Walker | null = null;
+    let bd = maxD * maxD;
+    for (let i = 0; i < this.activeWalkers; i++) {
+      const w = this.walkers[i];
+      if (!w.char.root.visible) continue;
+      const d = (w.x - x) ** 2 + (w.z - z) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = w;
+      }
+    }
+    if (!best) return null;
+    const w = best;
+    return { char: w.char, x: w.x, z: w.z, hold: (sec) => (w.pause = Math.max(w.pause, sec)) };
   }
 
   /** Walker positions near a point — traffic stops for them. */

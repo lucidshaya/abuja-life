@@ -76,6 +76,12 @@ describe('Save', () => {
     expect(partial.character.name).toBeTruthy();
   });
 
+  it('always starts with sound on, even if a previous session muted it', () => {
+    const s = newSave();
+    s.settings.muted = true;
+    expect(parseSave(JSON.stringify(s))!.settings.muted).toBe(false);
+  });
+
   it('returns null when storage throws', () => {
     const bad: KV = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => {} };
     expect(loadSave(bad)).toBeNull();
@@ -133,5 +139,35 @@ describe('Map data', () => {
     expect(Math.min(ex.x0, ex.x1)).toBeLessThan(-800);
     expect(onRoad(-500, -250)).not.toBeNull();
     expect(DISTRICTS.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('Locations', async () => {
+  const { PORTALS, TRAVEL, INTERIORS, interiorAt } = await import('../src/world/locations/Locations');
+  const { EVENTS } = await import('../src/events/eventsData');
+
+  it('has 18 fast-travel places, 7 featured', () => {
+    expect(TRAVEL).toHaveLength(18);
+    expect(TRAVEL.filter((t) => t.featured).map((t) => t.id).sort()).toEqual(['farmcity', 'hilton', 'mall', 'nass', 'nile', 'park', 'stadium']);
+  });
+
+  it('every "in" door leads inside an interior and every "out" door leads back outside', () => {
+    for (const p of PORTALS) {
+      const dest = interiorAt(p.to.x, p.to.z);
+      if (p.id.endsWith('-in')) expect(dest, p.id).not.toBeNull();
+      else expect(dest, p.id).toBeNull();
+      // Arriving must not land you on the door you came through... nor right on its partner.
+      const partner = PORTALS.find((q) => q !== p && Math.hypot(q.x - p.to.x, q.z - p.to.z) < 2.5);
+      if (partner) expect(Math.hypot(partner.x - p.to.x, partner.z - p.to.z), p.id).toBeGreaterThan(2);
+    }
+  });
+
+  it('interior travel spots are inside their interiors', () => {
+    expect(interiorAt(TRAVEL.find((t) => t.id === 'mall')!.x, TRAVEL.find((t) => t.id === 'mall')!.z)?.id).toBe('mall');
+    expect(INTERIORS.map((i) => i.id)).toContain('cage');
+  });
+
+  it('ships 40+ events', () => {
+    expect(EVENTS.length).toBeGreaterThanOrEqual(40);
   });
 });

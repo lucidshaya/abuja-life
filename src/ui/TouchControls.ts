@@ -25,6 +25,7 @@ export class TouchControls {
   private btns: Record<string, HTMLButtonElement> = {};
   private actionBtn: HTMLButtonElement;
   private hornBtn: HTMLButtonElement;
+  private giveBtn: HTMLButtonElement;
   enabled = false;
 
   constructor(private input: Input) {
@@ -59,8 +60,10 @@ export class TouchControls {
       (this.actionBtn = mk('action', 'Talk', 'interact', false)),
       mk('car', 'Car', 'vehicle', false),
       (this.hornBtn = mk('horn', 'Horn', 'horn', false)),
+      (this.giveBtn = mk('give', 'Give', 'give', false)),
     );
-    const top = h('div.ttop', {}, mk('map', 'Map', 'map', false), mk('pause', 'II', 'pause', false));
+    const top = h('div.ttop', {}, mk('dance', '💃🏾', 'dance', false), mk('map', '🗺️', 'map', false), mk('phone', '📱', 'phone', false), mk('pause', 'II', 'pause', false));
+    for (const [k, l] of [['dance', 'Dance'], ['map', 'Map'], ['phone', 'Phone'], ['pause', 'Pause']] as const) this.btns[k].setAttribute('aria-label', l);
     this.root.append(this.lookZone, this.stickZone, cluster, top);
 
     this.stickZone.addEventListener('pointerdown', (e) => {
@@ -126,6 +129,15 @@ export class TouchControls {
     this.lookZone.addEventListener('pointercancel', endLook);
   }
 
+  setPhoneBadge(n: number): void {
+    const b = this.btns.phone;
+    if (b) b.dataset.badge = n ? String(n) : '';
+  }
+
+  setPhoneNudge(on: boolean): void {
+    this.btns.phone?.classList.toggle('nudge', on);
+  }
+
   setVisible(on: boolean): void {
     this.enabled = on;
     show(this.root, on);
@@ -137,7 +149,11 @@ export class TouchControls {
     }
   }
 
-  setContext(inCar: boolean, action: string | null): void {
+  setContext(inCar: boolean, action: string | null, give: string | null = null, nearCar = false): void {
+    show(this.giveBtn, !!give && !inCar);
+    // Only show the Car button when there's a car to enter (or you're driving).
+    show(this.btns.car, inCar || nearCar);
+    if (give) this.giveBtn.querySelector('span')!.textContent = give;
     this.btns.jump.querySelector('span')!.textContent = inCar ? 'Brake' : 'Jump';
     this.btns.sprint.querySelector('span')!.textContent = inCar ? 'Nitro' : 'Run';
     this.btns.car.querySelector('span')!.textContent = inCar ? 'Exit' : 'Car';

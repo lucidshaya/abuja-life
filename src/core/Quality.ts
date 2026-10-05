@@ -25,7 +25,8 @@ export function isTouchDevice(): boolean {
 
 /** First guess before we have measured anything. */
 export function guessTier(touch: boolean, cores: number): Tier {
-  if (touch) return cores >= 8 ? 'medium' : 'low';
+  // Phones start on the best graphics; the game only steps down if it really struggles.
+  if (touch) return 'high';
   return cores >= 6 ? 'high' : 'medium';
 }
 

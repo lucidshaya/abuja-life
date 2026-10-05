@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { CollisionWorld } from '../core/Collision';
 import { mulberry32, pick, range } from '../core/rng';
-import { CAR_SPOTS, DISTRICTS, LANDMARKS, NPC_SPOTS, RESERVED, ROADS, SPAWN, WORLD, onRoad, rectsOverlap, type District, type Rect, type RoadSeg } from './MapData';
+import { CAR_SPOTS, DISTRICTS, LANDMARKS, NO_TREES, NPC_SPOTS, RESERVED, ROADS, SPAWN, WORLD, onRoad, rectsOverlap, type District, type Rect, type RoadSeg } from './MapData';
 import { buildingMaterial, nightGlowMaterial, paint } from './Materials';
 
 export interface CityData {
@@ -368,6 +368,9 @@ export function buildCity(world: CollisionWorld, seed = 2026): CityData {
   const keepClear = [{ x: SPAWN.x, z: SPAWN.z, r: 22 }, ...NPC_SPOTS.map((s) => ({ x: s.x, z: s.z, r: 7 })), ...CAR_SPOTS.map((c) => ({ x: c.x, z: c.z, r: 6 }))];
   const addTree = (x: number, z: number, palm = rng() < 0.25) => {
     if (keepClear.some((k) => (k.x - x) ** 2 + (k.z - z) ** 2 < k.r * k.r)) return;
+    if (NO_TREES.some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1)) return;
+    const cg = LANDMARKS.cityGate;
+    if (Math.abs(x - cg.x) < 70 && Math.abs(z - cg.z) < 34) return;
     const h = palm ? range(rng, 6, 9) : range(rng, 2.2, 3.6);
     trunks.add({ x, z, sy: h, sx: palm ? 0.8 : 1, sz: palm ? 0.8 : 1 });
     if (palm) palms.add({ x, y: h, z, ry: rng() * 6, sx: 1.1, sy: 1, sz: 1.1 });

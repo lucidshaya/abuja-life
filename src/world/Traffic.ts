@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Dynamic } from '../core/Collision';
 import { mulberry32, pick } from '../core/rng';
-import { carBodyGeometry } from '../player/Vehicle';
+import { carModelGeometry, type CarModel } from '../player/Vehicle';
 import { ROADS, type RoadSeg } from './MapData';
 
 interface Lane {
@@ -26,6 +26,14 @@ interface Car {
   speed: number;
   target: number;
   taxi: boolean;
+  /** Which instanced mesh: 0 Corolla, 1 Benz, 2 Changan UNI, 3 taxi. */
+  kind: number;
+}
+
+function pickKind(rng: () => number, taxi: boolean): number {
+  if (taxi) return 3;
+  const r = rng();
+  return r < 0.42 ? 0 : r < 0.68 ? 1 : 2;
 }
 
 const COLORS = [0xe9e9e9, 0x111111, 0x8a8f96, 0x1f3f7a, 0x7a1f1f, 0xc9c2b0, 0x2e5e3a, 0xd9d9d9, 0x3b3b3b];
@@ -60,8 +68,8 @@ function lanesFor(r: RoadSeg): Lane[] {
 }
 
 export class Traffic {
-  readonly mesh: THREE.InstancedMesh;
-  readonly taxiMesh: THREE.InstancedMesh;
+  /** One instanced mesh per car model (+ taxis). */
+  readonly meshes: THREE.InstancedMesh[] = [];
   private cars: Car[] = [];
   private jamCars: Car[] = [];
   private lanes: Lane[];
@@ -78,11 +86,14 @@ export class Traffic {
     const rng = mulberry32(99);
     const capacity = max + jamCars;
     this.lanes = ROADS.flatMap(lanesFor);
-    const mat = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 60, specular: 0x333333 });
-    this.mesh = new THREE.InstancedMesh(carBodyGeometry(0xffffff, true), mat, capacity);
-    this.taxiMesh = new THREE.InstancedMesh(carBodyGeometry(0x1f9a4f, true, true), mat, capacity);
-    this.mesh.castShadow = this.taxiMesh.castShadow = true;
-    this.mesh.frustumCulled = this.taxiMesh.frustumCulled = false;
+    const mat = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 80, specular: 0x555555 });
+    const models: [CarModel, boolean][] = [['corolla', false], ['benz', false], ['suv', false], ['corolla', true]];
+    for (const [model, taxi] of models) {
+      const m = new THREE.InstancedMesh(carModelGeometry(model, taxi ? 0x1f9a4f : 0xffffff, true, taxi), mat, capacity);
+      m.castShadow = true;
+      m.frustumCulled = false;
+      this.meshes.push(m);
+    }
     const weights = this.lanes.map((l) => l.len * (l.jam ? 3 : 1));
     const total = weights.reduce((a, b) => a + b, 0);
     for (let i = 0; i < max; i++) {
@@ -95,9 +106,8 @@ export class Traffic {
           break;
         }
       }
-      const taxi = rng() < 0.3;
-      this.cars.push({ lane, tMin: 0, tMax: lane.len, t: rng() * lane.len, speed: lane.speed, target: lane.speed * (0.8 + rng() * 0.3), taxi });
-      this.mesh.setColorAt(i, new THREE.Color(pick(rng, COLORS)));
+      const taxi = rng() < 0.25;
+      this.cars.push({ lane, tMin: 0, tMax: lane.len, t: rng() * lane.len, speed: lane.speed, target: lane.speed * (0.8 + rng() * 0.3), taxi, kind: pickKind(rng, taxi) });
     }
     // The Kubwa hold-up: dedicated cars crawling bumper to bumper (always on — it's one draw call).
     const jamLanes = this.lanes.filter((l) => l.jam);
@@ -108,10 +118,13 @@ export class Traffic {
       const tMax = 535; // x ≈ -385
       const n = Math.ceil(jamCars / jamLanes.length);
       const slot = Math.floor(i / jamLanes.length);
-      this.jamCars.push({ lane, tMin, tMax, t: tMin + ((slot + rng() * 0.3) / n) * (tMax - tMin), speed: 2, target: 2.4, taxi: rng() < 0.35 });
+      const taxi = rng() < 0.35;
+      this.jamCars.push({ lane, tMin, tMax, t: tMin + ((slot + rng() * 0.3) / n) * (tMax - tMin), speed: 2, target: 2.4, taxi, kind: pickKind(rng, taxi) });
     }
-    for (let i = max; i < capacity; i++) this.mesh.setColorAt(i, new THREE.Color(pick(rng, COLORS)));
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    for (const m of this.meshes.slice(0, 3)) {
+      for (let i = 0; i < capacity; i++) m.setColorAt(i, new THREE.Color(pick(rng, COLORS)));
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
     this.setActive(max);
   }
 
@@ -135,8 +148,7 @@ export class Traffic {
       list.push(c);
     }
     for (const list of byLane.values()) list.sort((a, b) => a.t - b.t);
-    let ni = 0;
-    let ti = 0;
+    const counts = [0, 0, 0, 0];
     for (const c of all) {
       const L = c.lane;
       const x = L.x0 + L.dx * c.t;
@@ -168,15 +180,14 @@ export class Traffic {
       this.q.setFromEuler(this.e.set(0, L.heading, 0));
       this.v.set(nx, 0, nz);
       this.m.compose(this.v, this.q, nearEnd ? this.hidden : this.s);
-      if (c.taxi) this.taxiMesh.setMatrixAt(ti++, this.m);
-      else this.mesh.setMatrixAt(ni++, this.m);
+      this.meshes[c.kind].setMatrixAt(counts[c.kind]++, this.m);
       if (!nearEnd) {
         this.dynamics.push({ x: nx + L.dx * 1.2, z: nz + L.dz * 1.2, r: 1.05 }, { x: nx - L.dx * 1.2, z: nz - L.dz * 1.2, r: 1.05 });
       }
     }
-    this.mesh.count = ni;
-    this.taxiMesh.count = ti;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    this.taxiMesh.instanceMatrix.needsUpdate = true;
+    this.meshes.forEach((m, i) => {
+      m.count = counts[i];
+      m.instanceMatrix.needsUpdate = true;
+    });
   }
 }

@@ -1,5 +1,11 @@
+import { Music } from './Music';
+
 /** Tiny synthesized sound kit — no audio files to download. */
 export class Audio {
+  readonly music = new Music();
+  private musicGain: GainNode | null = null;
+  muted = false;
+  musicVolume = 0.5;
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private engineOsc: OscillatorNode | null = null;
@@ -8,6 +14,11 @@ export class Audio {
   volume = 0.6;
 
   /** Must be called from a user gesture. */
+  /** True once the browser lets audio play (after the first tap/click/key). */
+  get running(): boolean {
+    return !!this.ctx && this.ctx.state === 'running';
+  }
+
   unlock(): void {
     if (this.ctx) {
       if (this.ctx.state === 'suspended') void this.ctx.resume();
@@ -17,8 +28,12 @@ export class Audio {
       const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new Ctx();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this.volume;
+      this.master.gain.value = this.muted ? 0 : this.volume;
       this.master.connect(this.ctx.destination);
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = this.musicVolume * 0.6;
+      this.musicGain.connect(this.master);
+      this.music.attach(this.ctx, this.musicGain);
     } catch {
       this.ctx = null;
     }
@@ -26,7 +41,17 @@ export class Audio {
 
   setVolume(v: number): void {
     this.volume = v;
-    if (this.master) this.master.gain.value = v;
+    if (this.master) this.master.gain.value = this.muted ? 0 : v;
+  }
+
+  setMusicVolume(v: number): void {
+    this.musicVolume = v;
+    if (this.musicGain) this.musicGain.gain.value = v * 0.6;
+  }
+
+  setMuted(m: boolean): void {
+    this.muted = m;
+    if (this.master && this.ctx) this.master.gain.setTargetAtTime(m ? 0 : this.volume, this.ctx.currentTime, 0.05);
   }
 
   private tone(freq: number, dur: number, type: OscillatorType, gain: number, delay = 0, slide = 0): void {
@@ -69,6 +94,19 @@ export class Audio {
   chime(): void {
     this.tone(659, 0.15, 'sine', 0.1);
     this.tone(880, 0.25, 'sine', 0.08, 0.1);
+  }
+
+  /** New text / email / credit alert: a bright phone "ding-ding-ding". */
+  notify(): void {
+    this.tone(1047, 0.12, 'sine', 0.16);
+    this.tone(1319, 0.12, 'sine', 0.15, 0.11);
+    this.tone(1568, 0.3, 'sine', 0.15, 0.22);
+    this.tone(2093, 0.25, 'triangle', 0.05, 0.22);
+    try {
+      navigator.vibrate?.([70, 50, 70]);
+    } catch {
+      /* not supported */
+    }
   }
 
   bump(strength: number): void {
