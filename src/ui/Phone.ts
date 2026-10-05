@@ -36,7 +36,7 @@ const WALLPAPERS = [
 ];
 
 const APPS: { id: Screen; name: string; color: string; glyph: string }[] = [
-  { id: 'bank', name: 'OkPay', color: '#16b464', glyph: '₦' },
+  { id: 'bank', name: 'OPay', color: '#16b464', glyph: '₦' },
   { id: 'messages', name: 'Messages', color: '#2a9df4', glyph: '✉' },
   { id: 'contacts', name: 'Contacts', color: '#f2a516', glyph: '☎' },
   { id: 'music', name: 'Music', color: '#e8364f', glyph: '♫' },
@@ -155,7 +155,7 @@ export class Phone {
           h('span.ph-icon', { style: `background:${a.color}`, text: a.glyph }, a.id === 'messages' && unread ? h('span.ph-badge', { text: String(unread) }) : null),
           h('span.ph-appname', { text: a.name }),
         ))),
-      h('div.ph-widget', {}, h('span', { text: 'OkPay balance' }), h('b', { text: this.host.state.hideBalance ? '₦ ••••••' : naira(this.host.money()) })),
+      h('div.ph-widget', {}, h('span', { text: 'OPay balance' }), h('b', { text: this.host.state.hideBalance ? '₦ ••••••' : naira(this.host.money()) })),
     );
   }
 
@@ -163,12 +163,12 @@ export class Phone {
     const st = this.host.state;
     const eye = h('button.ph-eye', { type: 'button', 'aria-label': st.hideBalance ? 'Show balance' : 'Hide balance', onclick: () => { st.hideBalance = !st.hideBalance; this.render(); } }, st.hideBalance ? '👁' : '🙈');
     b.append(
-      this.header('OkPay', 'home'),
+      this.header('OPay', 'home'),
       h('div.bk-card', {},
         h('div.bk-row', {}, h('span', { text: `Hi, ${this.host.playerName()}` }), eye),
         h('div.bk-label', { text: 'Wallet balance' }),
         h('div.bk-bal', { text: st.hideBalance ? '₦ ••••••' : naira(this.host.money()) }),
-        h('div.bk-acct', { text: 'Acct: 81' + String(4400000 + this.host.playerName().length * 7919).slice(0, 8) + ' • OkPay Microfinance' }),
+        h('div.bk-acct', { text: 'Acct: 81' + String(4400000 + this.host.playerName().length * 7919).slice(0, 8) + ' • OPay Digital Services' }),
       ),
       h('div.bk-actions', {},
         h('button.bk-act', { type: 'button', onclick: () => this.go('transfer') }, h('span', { text: '↗' }), 'Transfer'),

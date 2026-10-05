@@ -136,7 +136,7 @@ export class Game {
     this.scene.add(lm.group);
     this.glowMats.push(...lm.glowMats);
     this.animators.push(...lm.animators);
-    progress(0.55, 'Stocking ShopRight shelves and filling Millennium Park…');
+    progress(0.55, 'Stocking ShopRite shelves and filling Millennium Park…');
     await nextFrame();
     const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world)];
     for (const l of locs) {
@@ -367,7 +367,7 @@ export class Game {
       this.player.teleport(SPAWN.x, SPAWN.z, SPAWN.heading);
       this.rig.snapBehind(SPAWN.heading);
       this.addTx('Opening balance', this.save.stats.money);
-      this.addMsg('OkPay', `Welcome to OkPay, ${cfg.name}! Your wallet is ready with ${naira(this.save.stats.money)}. Spend wisely for Abuja 😉`, false);
+      this.addMsg('OPay', `Welcome to OPay, ${cfg.name}! Your wallet is ready with ${naira(this.save.stats.money)}. Spend wisely for Abuja 😉`, false);
       this.addMsg('Mummy ❤️', 'My child, you don reach Abuja? Call me when you settle. Love you!', false);
       this.persist();
       this.openTravel('start');
@@ -1184,7 +1184,7 @@ export class Game {
     else if (dm < 0 || dc < 0) this.audio.lose();
     if (fx.flag) this.setFlag(fx.flag);
     if (dm) this.addTx(label, dm);
-    if (dm >= 20000) window.setTimeout(() => this.addMsg('OkPay', `Credit alert! +${naira(dm)} • ${label}. Balance: ${naira(this.save.stats.money)}`), 1200);
+    if (dm >= 20000) window.setTimeout(() => this.addMsg('OPay', `Credit alert! +${naira(dm)} • ${label}. Balance: ${naira(this.save.stats.money)}`), 1200);
     if (fx.timeSkip) {
       this.hour += fx.timeSkip;
       while (this.hour >= 24) {

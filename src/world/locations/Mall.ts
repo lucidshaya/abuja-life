@@ -8,7 +8,7 @@ import { BoxField, Kit, THREE, fountain, glow, newBuild, nightMat, sign, waterMa
  * Jabi Lake Mall interior: x 1400..1540, z -60..40, ceiling at 9 m.
  *   South: entrance + security. Centre: fountain atrium. West: walk-in shops
  *   (cinema, phones, fashion, books, pharmacy) with a gallery above.
- *   North-west: food court. East: ShopRight supermarket. South-east: kids zone.
+ *   North-west: food court. East: ShopRite supermarket. South-east: kids zone.
  */
 export function buildMall(world: CollisionWorld): LocationBuild {
   const b = newBuild('mall');
@@ -178,15 +178,15 @@ export function buildMall(world: CollisionWorld): LocationBuild {
     world.addBox(x - 1.6, z - 0.9, x + 1.6, z + 0.9, 0.8);
   }
 
-  // ---------------- ShopRight supermarket (east) ----------------
+  // ---------------- ShopRite supermarket (east) ----------------
   const SR = { x0: 1480, x1: X1, z0: Z0, z1: 20 };
   k.floor(SR.x0, SR.z0, SR.x1, SR.z1, 0.03, 0xf7f7f4);
   k.wall(SR.x0 - 0.3, SR.z0, SR.x0, -12, H, 0xffffff, 0.3);
   k.wall(SR.x0 - 0.3, 2, SR.x0, SR.z1, H, 0xffffff, 0.3);
   k.wall(SR.x0, SR.z1, SR.x1, SR.z1 + 0.3, H, 0xffffff, 0.3);
   k.box(SR.x0 - 0.15, 4.5, -5, 0.4, H - 4.5, 14, 0xc0262d);
-  sign(g, 'ShopRight', SR.x0 - 0.4, 6.4, -5, -Math.PI / 2, 12, 2.4, { bg: '#c0262d', fg: '#ffffff', sub: 'Better and better • Abuja prices' });
-  sign(g, 'ShopRight', SR.x0 + 0.2, 6.4, -5, Math.PI / 2, 12, 2.4, { bg: '#c0262d', sub: 'Thank you for shopping!' });
+  sign(g, 'ShopRite', SR.x0 - 0.4, 6.4, -5, -Math.PI / 2, 12, 2.4, { bg: '#c0262d', fg: '#ffffff', sub: 'Better and better • Abuja prices' });
+  sign(g, 'ShopRite', SR.x0 + 0.2, 6.4, -5, Math.PI / 2, 12, 2.4, { bg: '#c0262d', sub: 'Thank you for shopping!' });
   // Checkouts
   for (const z of [-18, -26, -34, -42]) {
     k.box(1489, 0, z, 1.1, 0.9, 4.2, 0x2b2f33, true);
@@ -296,7 +296,7 @@ export function buildMall(world: CollisionWorld): LocationBuild {
 
 /**
  * Outside Jabi Lake Mall (in the city, by the lake): two-storey mall with the
- * triple-height "tree" atrium entrance facing the car park, a ShopRight anchor,
+ * triple-height "tree" atrium entrance facing the car park, a ShopRite anchor,
  * and a lakeside boardwalk with restaurant terraces.
  *   Mall: x -240..-160, z -108..-78. Car park: x -152..-135, z -114..-50.
  */
@@ -357,9 +357,9 @@ function buildMallExterior(world: CollisionWorld, b: LocationBuild): void {
   glow(g, AX1 + 0.1, 0, tz, 0.08, 3.6, 6, 0xcfeaff, 0.85);
   sign(g, 'JABI LAKE MALL', AX1 + 0.3, 17.5, tz, Math.PI / 2, 14, 2.4, { bg: '#ffffff', fg: '#0f4f2a', sub: 'Shop • Dine • Relax by the lake' });
   sign(g, 'ENTRANCE', AX1 + 4.85, 4.9, tz, Math.PI / 2, 4, 0.7, { bg: '#0f4f2a' });
-  // ---- ShopRight anchor (north end of the car-park facade) ----
+  // ---- ShopRite anchor (north end of the car-park facade) ----
   k.box(X1 + 0.3, 0, -104.5, 0.6, H + 1.2, 7, 0xc0262d);
-  sign(g, 'ShopRight', X1 + 0.7, 11.5, -104.5, Math.PI / 2, 6.6, 2.2, { bg: '#c0262d', sub: 'Better & better' });
+  sign(g, 'ShopRite', X1 + 0.7, 11.5, -104.5, Math.PI / 2, 6.6, 2.2, { bg: '#c0262d', sub: 'Better & better' });
   glow(g, X1 + 0.7, 0, -104.5, 0.06, 3.2, 4, 0xcfeaff, 0.8);
   for (let t = 0; t < 7; t++) {
     k.box(-156.5, 0.5, -107 + t * 0.6, 0.6, 0.5, 0.9, 0x9aa3ad);

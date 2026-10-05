@@ -24,7 +24,7 @@ export class Hud {
   bindings!: Bindings;
 
   constructor() {
-    const stats = h('div.stats', {}, h('div.row', {}, this.money), h('div.row', {}, this.clout, this.clock), this.district);
+    const stats = h('div.stats', {}, h('div.bal-label', { text: 'OPay account balance' }), h('div.row', {}, this.money), h('div.row', {}, this.clout, this.clock), this.district);
     this.root.append(stats, h('div.minimap-wrap', {}, this.minimapCanvas), this.toast, this.prompt, this.feed, this.hints, this.speedo);
   }
 

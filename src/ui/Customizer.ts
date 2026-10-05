@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../core/rng';
 import { Character } from '../player/Character';
-import { CLOTH_COLORS, HAIR_COLORS, OPTIONS, SKIN_TONES, randomCharacter, type CharacterConfig } from '../player/CharacterConfig';
+import { CLOTH_COLORS, EYE_COLORS, HAIR_COLORS, LIP_COLORS, OPTIONS, SKIN_TONES, randomCharacter, type CharacterConfig } from '../player/CharacterConfig';
 import { $, h, show } from './dom';
 
-type Tab = 'identity' | 'body' | 'style';
+type Tab = 'identity' | 'body' | 'face' | 'style';
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
@@ -42,8 +42,9 @@ export class Customizer {
     this.char = new Character(randomCharacter(this.rng));
     this.scene.add(this.char.root);
 
-    const tabs = h('div.cz-tabs', {}, ...(['identity', 'body', 'style'] as Tab[]).map((t) =>
-      h('button.cz-tab', { type: 'button', 'data-tab': t, onclick: () => { this.onClick(); this.tab = t; this.render(); } }, t === 'identity' ? 'You' : t === 'body' ? 'Body' : 'Drip')));
+    const tabNames: Record<Tab, string> = { identity: 'You', body: 'Body', face: 'Face', style: 'Drip' };
+    const tabs = h('div.cz-tabs', {}, ...(['identity', 'body', 'face', 'style'] as Tab[]).map((t) =>
+      h('button.cz-tab', { type: 'button', 'data-tab': t, onclick: () => { this.onClick(); this.tab = t; this.zoomFace = t === 'face'; this.render(); } }, tabNames[t])));
     const actions = h('div.cz-actions', {},
       h('button.btn', { type: 'button', onclick: () => { this.onClick(); this.randomize(); } }, '🎲 Random'),
       this.doneBtn);
@@ -103,7 +104,16 @@ export class Customizer {
     // Gele/hijab replace any cap.
     if (k === 'hair' && (v === 'gele' || v === 'hijab')) this.cfg.headwear = 'none';
     if (k === 'headwear' && v !== 'none' && (this.cfg.hair === 'gele' || this.cfg.hair === 'hijab')) this.cfg.hair = 'lowcut';
-    if (k === 'outfit' && (v === 'ankara' || v === 'asoebi') && this.cfg.pattern === 'plain') this.cfg.pattern = 'circles';
+    if (k === 'outfit' && (v === 'ankara' || v === 'asoebi' || v === 'iroBuba') && this.cfg.pattern === 'plain') this.cfg.pattern = 'circles';
+    if (k === 'outfit' && v === 'isiagu') this.cfg.pattern = 'lion';
+    if (k === 'outfit' && v === 'nysc') {
+      this.cfg.headwear = this.cfg.hair === 'gele' || this.cfg.hair === 'hijab' ? 'none' : 'nyscCap';
+      this.cfg.shoes = 'boots';
+    }
+    if (k === 'outfit' && v === 'babariga' && this.cfg.headwear === 'none' && this.cfg.hair !== 'gele' && this.cfg.hair !== 'hijab') this.cfg.headwear = 'zanna';
+    if (k === 'outfit' && v === 'abaya' && this.cfg.hair !== 'gele') this.cfg.hair = 'hijab';
+    if (k === 'shades' && v) this.cfg.specs = false;
+    if (k === 'specs' && v) this.cfg.shades = false;
     this.rebuild();
     this.render();
   }
@@ -127,7 +137,7 @@ export class Customizer {
       if (sel?.desc) wrap.append(h('div.cz-desc', { text: sel.desc }));
       return wrap;
     };
-    const swatches = <K extends 'skin' | 'primary' | 'secondary' | 'hairColor'>(label: string, key: K, colors: number[]) => {
+    const swatches = <K extends 'skin' | 'primary' | 'secondary' | 'hairColor' | 'eyeColor' | 'lips' | 'trousers'>(label: string, key: K, colors: number[]) => {
       const row = h('div.swatches');
       colors.forEach((c, i) => {
         row.append(h('button.sw' + (this.cfg[key] === i ? '.on' : ''), {
@@ -151,14 +161,24 @@ export class Customizer {
       b.append(chips('Hair', 'hair', OPTIONS.hair));
       b.append(swatches('Hair colour', 'hairColor', HAIR_COLORS));
       b.append(chips('Facial hair', 'facialHair', OPTIONS.facialHair));
+    } else if (this.tab === 'face') {
+      b.append(chips('Face shape', 'face', OPTIONS.face));
+      b.append(swatches('Eye colour', 'eyeColor', EYE_COLORS));
+      b.append(chips('Eyebrows', 'brows', OPTIONS.brows));
+      b.append(swatches('Lip colour', 'lips', LIP_COLORS));
+      b.append(chips('Tribal marks', 'marks', OPTIONS.marks));
     } else {
       b.append(chips('Outfit', 'outfit', OPTIONS.outfit));
       b.append(swatches('Main colour', 'primary', CLOTH_COLORS));
       b.append(swatches('Accent / pattern colour', 'secondary', CLOTH_COLORS));
       b.append(chips('Fabric pattern', 'pattern', OPTIONS.pattern));
       b.append(chips('Headwear', 'headwear', OPTIONS.headwear));
-      const shades = h('button.chip' + (this.cfg.shades ? '.on' : ''), { type: 'button', onclick: () => { this.onClick(); this.set('shades', !this.cfg.shades); } }, this.cfg.shades ? '😎 Shades on' : 'Shades off');
-      b.append(h('div.cz-group', {}, h('div.cz-label', { text: 'Accessories' }), h('div.chips', {}, shades)));
+      b.append(swatches('Trousers / wrapper colour', 'trousers', CLOTH_COLORS));
+      b.append(chips('Shoes', 'shoes', OPTIONS.shoes));
+      const toggle = (key: 'shades' | 'specs' | 'watch' | 'chain' | 'bag', label: string) =>
+        h('button.chip' + (this.cfg[key] ? '.on' : ''), { type: 'button', onclick: () => { this.onClick(); this.set(key, !this.cfg[key]); } }, label);
+      b.append(h('div.cz-group', {}, h('div.cz-label', { text: 'Accessories' }), h('div.chips', {},
+        toggle('shades', '😎 Shades'), toggle('specs', '👓 Glasses'), toggle('watch', '⌚ Wristwatch'), toggle('chain', '📿 Gold chain'), toggle('bag', '👜 Side bag'))));
     }
   }
 

@@ -44,9 +44,9 @@ click to go (on phones, tap a pin, then **Go there**). It also opens from **Paus
 the phone's **Maps** app, and Danladi's taxi:
 
 - **Jabi Lake Mall** *(featured)*. Outside: the two-storey lakeside mall with its triple-height "tree" atrium entrance, a
-  full car park (bays, parked cars, lamps, security barrier), the ShopRight anchor entrance and a lakeside boardwalk with
+  full car park (bays, parked cars, lamps, security barrier), the ShopRite anchor entrance and a lakeside boardwalk with
   restaurant terraces. Inside: a full interior with a fountain atrium, walk-in shops (fashion, phones, cinema, books,
-  pharmacy), a food court, a kids zone, and the ShopRight supermarket with aisles, fridges, fresh produce, water pallets
+  pharmacy), a food court, a kids zone, and the ShopRite supermarket with aisles, fridges, fresh produce, water pallets
   and checkouts.
 - **Nile University** *(featured)*. Gate security, the senate building, faculties, the library, Mama Caf, a football
   match at the Faculty Cup, basketball, hostels, a chapel and a mosque, and a walk-in Lecture Theatre 1.
@@ -60,7 +60,7 @@ Changan UNI SUVs and green-and-white Corolla cabs.
 
 ## Your phone (Q)
 
-- **OkPay**: your wallet. Balance (with a hide button), full transaction history, transfers to your contacts (₦10 fee),
+- **OPay**: your wallet. Balance (with a hide button), full transaction history, transfers to your contacts (₦10 fee),
   airtime, data, cable TV and electricity tokens (buying one ends a NEPA blackout).
 - **Messages**: texts from Mummy every morning, the Wuse Boys & Girls group chat, credit alerts, and people you meet.
 - **Contacts**: call people. You unlock more numbers by meeting them around Abuja. Call **Danladi** for a ₦2,500 taxi

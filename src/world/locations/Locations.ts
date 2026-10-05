@@ -65,7 +65,7 @@ export interface TravelSpot {
 export const TRAVEL: TravelSpot[] = [
   {
     id: 'mall', name: 'Jabi Lake Mall', area: 'Jabi', featured: true, color: '#2a64c9',
-    desc: 'Full mall: ShopRight supermarket, food court, cinema, phone shop, and the fountain atrium.',
+    desc: 'Full mall: ShopRite supermarket, food court, cinema, phone shop, and the fountain atrium.',
     x: 1470, z: 30, heading: Math.PI, pin: { x: -185, z: -93 },
   },
   {

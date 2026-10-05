@@ -3,7 +3,7 @@ import { angleDiff, damp } from '../core/rng';
 import type { Character } from './Character';
 
 export const WALK_SPEED = 3.2;
-export const RUN_SPEED = 7;
+export const RUN_SPEED = 9.5;
 
 export class PlayerController {
   x: number;

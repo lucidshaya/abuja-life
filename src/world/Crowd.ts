@@ -101,7 +101,7 @@ export class Crowds {
 
   private makeAgent(spec: AgentSpec, i: number, n: number, parent: THREE.Group): Agent {
     const cfg = { ...randomCharacter(this.rng), ...(spec.cfg ?? {}) };
-    const char = new Character(cfg, false);
+    const char = new Character(cfg, false, 'low');
     if (spec.scale) char.root.scale.multiplyScalar(spec.scale);
     parent.add(char.root);
     const ag: Agent = { char, spec, x: 0, z: 0, tx: 0, tz: 0, speed: (spec.kind !== 'static' ? spec.speed : 0) ?? 1.2 + this.rng() * 0.5, pause: this.rng() * 3, t: 0 };

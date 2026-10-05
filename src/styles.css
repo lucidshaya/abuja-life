@@ -83,6 +83,7 @@ kbd {
   border-radius: var(--radius); padding: 10px 14px; min-width: 190px; backdrop-filter: blur(6px);
 }
 .stats .row { display: flex; gap: 12px; align-items: baseline; }
+.bal-label { font: 700 10.5px var(--body); text-transform: uppercase; letter-spacing: 0.1em; color: #9fe8bd; opacity: 0.9; }
 .money { font: 800 26px var(--head); color: var(--good); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
 .clout { font-weight: 700; color: var(--gold); font-size: 14px; }
 .clock { font-size: 13px; opacity: 0.85; }

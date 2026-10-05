@@ -449,7 +449,7 @@ export const EVENTS: GameEvent[] = [
   },
   {
     id: 'mall-checkout',
-    title: 'ShopRight Checkout',
+    title: 'ShopRite Checkout',
     speaker: 'Cashier Blessing',
     trigger: { type: 'npc', npc: 'cashier', hours: [8, 22], cooldown: 90 },
     unavailable: 'Till don close. Come back tomorrow by 8am.',

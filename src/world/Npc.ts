@@ -115,7 +115,7 @@ export class Npcs {
       this.eventNpcs.push({ spot, char, marker });
     }
     for (let i = 0; i < maxWalkers; i++) {
-      const char = new Character(randomCharacter(this.rng), false);
+      const char = new Character(randomCharacter(this.rng), false, 'low');
       const road = this.roads[Math.floor(this.rng() * this.roads.length)];
       const w: Walker = { char, road, side: this.rng() < 0.5 ? -1 : 1, t: 0, dir: this.rng() < 0.5 ? -1 : 1, speed: 1.1 + this.rng() * 0.6, x: 0, z: 0, pause: 0 };
       this.walkers.push(w);
