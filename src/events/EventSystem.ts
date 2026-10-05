@@ -29,6 +29,8 @@ export interface Requirement {
   flag?: string;
   notFlag?: string;
   background?: Background[];
+  /** Player role ids (see player/Roles.ts), e.g. ['senator', 'minister']. */
+  role?: string[];
 }
 
 export interface Choice {
@@ -73,6 +75,7 @@ export interface EventContext {
   background: Background;
   stats: Stats;
   flags: ReadonlySet<string>;
+  role?: string | null;
 }
 
 export function hourInRange(hour: number, range: [number, number] | undefined): boolean {
@@ -89,6 +92,7 @@ export function meets(req: Requirement | undefined, ctx: EventContext): boolean 
   if (req.flag && !ctx.flags.has(req.flag)) return false;
   if (req.notFlag && ctx.flags.has(req.notFlag)) return false;
   if (req.background && !req.background.includes(ctx.background)) return false;
+  if (req.role && !(ctx.role && req.role.includes(ctx.role))) return false;
   return true;
 }
 

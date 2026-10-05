@@ -519,6 +519,8 @@ export class Character {
   talking = false;
   /** Crowd poses and dance emotes. */
   pose: Pose = 'normal';
+  /** The look this character was last built with. */
+  cfg!: CharacterConfig;
 
   constructor(cfg: CharacterConfig, castShadow = true, readonly detail: Detail = 'high') {
     this.root.add(this.body);
@@ -539,6 +541,7 @@ export class Character {
   }
 
   build(cfg: CharacterConfig, castShadow = true): void {
+    this.cfg = cfg;
     for (const m of this.meshes) {
       m.parent?.remove(m);
       m.geometry.dispose();

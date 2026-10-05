@@ -50,6 +50,14 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   check('desktop: menu visible', await page.isVisible('#menu'));
   await page.click('text=New Life');
   await sleep(500);
+  check('desktop: role picker opens first', await page.isVisible('#rolepicker'));
+  check('roles: 10 roles to pick from', (await page.locator('.rp-card').count()) === 10, String(await page.locator('.rp-card').count()));
+  await page.click('.rp-card[data-role="minister"]');
+  await sleep(200);
+  await page.screenshot({ path: `${OUT}/01b-roles.png` });
+  await page.click('.rp-card[data-role="student"]');
+  await page.click('.rp-go');
+  await sleep(500);
   check('desktop: customizer opens', await page.isVisible('#customizer'));
   await page.click('.cz-tab[data-tab="style"]');
   await page.click('.chip:has-text("Agbada")');
@@ -58,7 +66,9 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await page.click('text=Start Life in Abuja');
   await sleep(600);
   check('desktop: travel menu shows after New Life', await page.isVisible('#travel'));
-  check('desktop: travel menu lists 8 places + start', (await page.locator('.tcard').count()) === 9, String(await page.locator('.tcard').count()));
+  const ncards = await page.locator('.tcard').count();
+  check('desktop: travel menu lists places + start + workplace', ncards >= 10, String(ncards));
+  check('travel: workplace pin for your role', await page.isVisible('.tcard:has-text("Your workplace")'));
   await sleep(1500);
   const pinsVisible = await page.locator('.tv-pin').evaluateAll((els) => els.filter((e) => e.style.visibility !== 'hidden').length);
   check('travel: bird\'s-eye map shows place pins', pinsVisible >= 8, `${pinsVisible} pins on screen`);
@@ -71,6 +81,10 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await sleep(1400);
   let p0 = await pos(page);
   check('desktop: playing after customizer', p0.state === 'play', p0.state);
+  const roleInfo = await G(page, () => ({ role: window.__abuja.save.role, money: window.__abuja.save.stats.money, mail: window.__abuja.save.phone.mail.length }));
+  check('roles: student role saved with its money', roleInfo.role === 'student' && roleInfo.money === 15000 + 5000, JSON.stringify(roleInfo));
+  check('roles: HUD shows the role', ((await page.textContent('.role-label')) ?? '').includes('Student'));
+  check('hud: balance labelled OPay account balance', ((await page.textContent('.bal-label')) ?? '').includes('OPay account balance'));
   await page.screenshot({ path: `${OUT}/03-spawn-zuma.png` });
   // Walk forward with W + sprint.
   await page.keyboard.down('KeyW');
@@ -166,17 +180,40 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await pressUntil(page, 'KeyQ', () => page.isVisible('#phone'), 3);
   check('phone: Q opens the phone', await page.isVisible('#phone'));
   await page.screenshot({ path: `${OUT}/25-phone-home.png` });
-  await page.click('.ph-app:has-text("OkPay")');
+  await page.click('.ph-app:has-text("OPay")');
   await sleep(300);
   const before = await G(page, () => window.__abuja.save.stats.money);
   check('phone: bank shows the balance', ((await page.textContent('.bk-bal')) ?? '').replace(/[^0-9]/g, '') === String(before));
-  await page.click('.bk-act:has-text("Transfer")');
+  await page.click('.bk-act:has-text("To contacts")');
   await page.click('.ct-row:has-text("Mummy")');
   await page.click('.tf-amt:has-text("1,000")');
   await sleep(300);
   const after = await G(page, () => window.__abuja.save.stats.money);
   check('phone: transfer to Mummy deducts ₦1,010', before - after === 1010, `${before} → ${after}`);
   await page.screenshot({ path: `${OUT}/26-phone-bank.png` });
+  await page.click('.bk-act:has-text("To any account")');
+  await page.fill('.sa-form input >> nth=0', 'Musa Ibrahim');
+  await page.fill('.sa-form input >> nth=1', '0123456789');
+  await page.fill('.sa-form input >> nth=2', '2000');
+  await page.click('.sa-form .ph-btn');
+  await sleep(300);
+  const after2 = await G(page, () => window.__abuja.save.stats.money);
+  check('phone: send to any account deducts amount + fee', after - after2 === 2010, `${after} → ${after2}`);
+  await page.click('.bk-act:has-text("Request money")');
+  await page.click('.ct-row:has-text("Mummy")');
+  await page.click('.tf-amt >> nth=0');
+  await sleep(200);
+  check('phone: request money sends a request', ((await page.textContent('.ph-toast')) ?? '').includes('sent'));
+  await page.click('.ph-back');
+  await page.click('.ph-back');
+  await page.click('.ph-app:has-text("Mail")');
+  await sleep(300);
+  const mailText = (await page.textContent('.ph-body')) ?? '';
+  check('mail: inbox shows your address and role welcome email', mailText.includes('@') && mailText.includes('Course registration'), mailText.slice(0, 90));
+  await page.click('.ml-row >> nth=0');
+  await sleep(200);
+  await page.screenshot({ path: `${OUT}/26b-phone-mail.png` });
+  await page.click('.ph-back');
   await page.click('.ph-back');
   await page.click('.ph-app:has-text("Messages")');
   await sleep(2300);
@@ -217,6 +254,103 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await tp(430, 250, Math.PI / 2, 17.5);
   await sleep(1500);
   await page.screenshot({ path: `${OUT}/19f-guzape.png` });
+  // ---- Quick actions: Nile "Go to class" ----
+  // No random events from here on, so dialogs don't pop up mid-test.
+  await G(page, () => { const g = window.__abuja; g.events.randomTick = () => null; g.events.zoneCheck = () => null; });
+  const freeMouse = () => pressUntil(page, 'KeyT', () => G(page, () => !document.pointerLockElement), 4);
+  const clearDialogue = async () => { for (let i = 0; i < 8 && (await page.isVisible('#dialogue')); i++) { await page.keyboard.press(i % 2 ? 'KeyE' : 'Escape'); await sleep(350); } };
+  await clearDialogue();
+  await tp(-470, 60, -Math.PI / 2, 10);
+  await sleep(900);
+  await clearDialogue();
+  check('quick: side panel shows at Nile', await page.isVisible('#quick .qa-item:has-text("Go to class")'));
+  await page.screenshot({ path: `${OUT}/31-quick-nile.png` });
+  await freeMouse();
+  await page.click('#quick .qa-item:has-text("Go to class")');
+  for (let i = 0; i < 12 && !(await page.isVisible('#dialogue')); i++) await sleep(300);
+  const cls = await G(page, () => ({ indoor: window.__abuja.indoor?.id, state: window.__abuja.state, speaker: document.querySelector('.d-speaker')?.textContent }));
+  check('quick: "Go to class" lands in LT1 with the lecture', cls.indoor === 'lt1' && cls.state === 'dialogue' && (cls.speaker ?? '').includes('Okafor'), JSON.stringify(cls));
+  await page.screenshot({ path: `${OUT}/32-quick-class.png` });
+  const roleChoice = await page.isVisible('.d-choice:has-text("you read last night")').catch(() => false);
+  for (let i = 0; i < 4 && !(await page.isVisible('.d-choice')); i++) { await page.keyboard.press('KeyE'); await sleep(400); }
+  check('roles: student-only choice in the lecture', await page.isVisible('.d-choice:has-text("you read last night")') || roleChoice);
+  await page.keyboard.press('Digit1');
+  await sleep(500);
+  await pressUntil(page, 'KeyE', async () => !(await page.isVisible('#dialogue')), 8);
+  // Quick-item spots must not be inside walls.
+  const blocked = await G(page, () => {
+    const g = window.__abuja;
+    const bad = [];
+    for (const z of g.quickZones) for (const it of z.items) {
+      const q = { x: it.x, z: it.z };
+      g.world.resolveCircle(q, 0.35, 0, false);
+      if (Math.hypot(q.x - it.x, q.z - it.z) > 0.3) bad.push(`${z.id}:${it.label}`);
+    }
+    return bad;
+  });
+  check('quick: every quick spot is walkable', blocked.length === 0, blocked.join(', '));
+  // Work at your workplace (student → Nile gate).
+  await tp(-402, 58, -Math.PI / 2, 9);
+  await sleep(800);
+  check('work: "Go to work" shows near your workplace', await page.isVisible('#quick .qa-item.accent'));
+  const h0 = await G(page, () => window.__abuja.hour);
+  await freeMouse();
+  await page.click('#quick .qa-item.accent');
+  await sleep(500);
+  await pressUntil(page, 'KeyE', () => page.isVisible('.d-choice'), 6);
+  await page.keyboard.press('Digit1');
+  await sleep(500);
+  const h1 = await G(page, () => window.__abuja.hour);
+  check('work: working skips time', h1 - h0 >= 2.5, `${h0.toFixed(1)} → ${h1.toFixed(1)}`);
+  await pressUntil(page, 'KeyE', async () => !(await page.isVisible('#dialogue')), 6);
+  // Salary at 8am.
+  const sal = await G(page, async () => { const g = window.__abuja; const m = g.save.stats.money; g.day += 1; g.hour = 8.2; await new Promise((r) => setTimeout(r, 900)); return g.save.stats.money - m; });
+  check('salary: daily allowance lands at 8am', sal >= 3000, `+${sal}`);
+  // Give cash (G) to Uncle Emeka.
+  await tp(-697, -233.6, Math.PI, 10);
+  await sleep(400);
+  const mg0 = await G(page, () => window.__abuja.save.stats.money);
+  await pressUntil(page, 'KeyG', () => page.isVisible('#dialogue'), 3);
+  await pressUntil(page, 'KeyE', () => page.isVisible('.d-choice'), 6);
+  await page.screenshot({ path: `${OUT}/33-give-cash.png` });
+  await page.keyboard.press('Digit2');
+  await sleep(500);
+  const mg1 = await G(page, () => window.__abuja.save.stats.money);
+  check('give: G gives ₦1,000 cash', mg0 - mg1 === 1000, `${mg0} → ${mg1}`);
+  await pressUntil(page, 'KeyE', async () => !(await page.isVisible('#dialogue')), 6);
+  // Dance emote.
+  await tp(-690, -240, Math.PI / 2, 10);
+  await pressUntil(page, 'KeyB', () => page.isVisible('#emotes'), 3);
+  check('dance: B opens the emote menu', await page.isVisible('#emotes'));
+  await page.screenshot({ path: `${OUT}/34-emote-menu.png` });
+  await page.keyboard.press('Digit1');
+  await sleep(1200);
+  const pose = await G(page, () => window.__abuja.playerChar.pose);
+  check('dance: picking an emote makes you dance', pose === 'egwu', pose);
+  await G(page, () => { const g = window.__abuja; g.rig.yaw = g.player.heading + Math.PI; });
+  await sleep(600);
+  await page.screenshot({ path: `${OUT}/35-dancing.png` });
+  await page.keyboard.down('KeyW');
+  await sleep(1200);
+  await page.keyboard.up('KeyW');
+  check('dance: moving stops the dance', await G(page, () => window.__abuja.playerChar.pose === 'normal'));
+  // M map: click a place to teleport.
+  await pressUntil(page, 'KeyM', () => page.isVisible('#map'), 3);
+  await sleep(400);
+  const target = await G(page, () => {
+    const g = window.__abuja;
+    const p = g.fullMap.places.find((x) => x.name === 'Millennium Park');
+    const [sx, sy] = g.fullMap.toScreen(p.x, p.z);
+    const r = g.fullMap.canvas.getBoundingClientRect();
+    return { x: r.left + sx, y: r.top + sy };
+  });
+  await page.mouse.move(target.x, target.y);
+  await sleep(300);
+  await page.screenshot({ path: `${OUT}/36-map-hover.png` });
+  await page.mouse.click(target.x, target.y);
+  await sleep(1500);
+  const mp = await pos(page);
+  check('map: clicking a place teleports there', Math.hypot(mp.x - 250, mp.z + 142) < 4 && mp.state === 'play', JSON.stringify(mp));
   // Mute button.
   await pressUntil(page, 'KeyN', () => G(page, () => window.__abuja.save.settings.muted === true), 3);
   check('audio: N key mutes', await G(page, () => window.__abuja.save.settings.muted === true && document.getElementById('mute').classList.contains('muted')));
@@ -275,6 +409,10 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   check('mobile: touch mode detected', await G(page, () => window.__abuja.input.device === 'touch'));
   await page.tap('text=New Life');
   await sleep(500);
+  await page.screenshot({ path: `${OUT}/20a-mobile-roles.png` });
+  await page.tap('.rp-card[data-role="almajiri"]');
+  await page.tap('.rp-go');
+  await sleep(500);
   await page.screenshot({ path: `${OUT}/20-mobile-customizer.png` });
   await page.tap('text=Start Life in Abuja');
   await sleep(600);
@@ -283,6 +421,7 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await sleep(1400);
   check('mobile: touch controls visible', await page.isVisible('#touch'));
   check('mobile: keyboard hints hidden', !(await page.isVisible('.hints')));
+  check('mobile: Dance button visible', await page.isVisible('.tbtn.dance'));
   await page.screenshot({ path: `${OUT}/21-mobile-play.png` });
   const p0 = await pos(page);
   // Joystick drag on the left side (pointer events).

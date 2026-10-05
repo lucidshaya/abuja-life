@@ -68,6 +68,14 @@ function markerTexture(text: string, bg: string, fg: string): THREE.Texture {
   return t;
 }
 
+/** Someone the player can interact with casually (give cash). */
+export interface Person {
+  char: Character;
+  x: number;
+  z: number;
+  hold: (seconds: number) => void;
+}
+
 export interface EventNpc {
   spot: NpcSpot;
   /** null for interactive objects (marker only). */
@@ -115,7 +123,10 @@ export class Npcs {
       this.eventNpcs.push({ spot, char, marker });
     }
     for (let i = 0; i < maxWalkers; i++) {
-      const char = new Character(randomCharacter(this.rng), false, 'low');
+      const cfg = randomCharacter(this.rng);
+      // Some almajiri boys walk the streets with their bowls.
+      if (i % 11 === 3) Object.assign(cfg, { outfit: 'jalabiya', primary: 1, secondary: 13, headwear: 'kufi', hair: 'bald', facialHair: 'none', shoes: 'sandals', build: 'slim', height: 'short', bag: true, shades: false, specs: false, chain: false, watch: false });
+      const char = new Character(cfg, false, 'low');
       const road = this.roads[Math.floor(this.rng() * this.roads.length)];
       const w: Walker = { char, road, side: this.rng() < 0.5 ? -1 : 1, t: 0, dir: this.rng() < 0.5 ? -1 : 1, speed: 1.1 + this.rng() * 0.6, x: 0, z: 0, pause: 0 };
       this.walkers.push(w);
@@ -223,6 +234,24 @@ export class Npcs {
       w.char.update(dt, w.pause > 0 ? 0 : w.speed);
       this.dynamics.push({ x: w.x, z: w.z, r: 0.3 });
     }
+  }
+
+  /** Closest visible street walker (for giving cash). Stops them for a few seconds. */
+  nearestWalker(x: number, z: number, maxD: number): Person | null {
+    let best: Walker | null = null;
+    let bd = maxD * maxD;
+    for (let i = 0; i < this.activeWalkers; i++) {
+      const w = this.walkers[i];
+      if (!w.char.root.visible) continue;
+      const d = (w.x - x) ** 2 + (w.z - z) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = w;
+      }
+    }
+    if (!best) return null;
+    const w = best;
+    return { char: w.char, x: w.x, z: w.z, hold: (sec) => (w.pause = Math.max(w.pause, sec)) };
   }
 
   /** Walker positions near a point — traffic stops for them. */

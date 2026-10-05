@@ -38,7 +38,7 @@ export class TravelMenu {
     return !this.root.classList.contains('hidden');
   }
 
-  show(mode: TravelMode, onPick: (c: TravelChoice) => void, onBack?: () => void, extra?: { x: number; z: number }): void {
+  show(mode: TravelMode, onPick: (c: TravelChoice) => void, onBack?: () => void, extra?: { x: number; z: number }, work?: TravelSpot): void {
     this.onPick = onPick;
     this.selected = null;
     this.touchMode = document.body.classList.contains('touch-mode');
@@ -72,6 +72,7 @@ export class TravelMenu {
     if (mode === 'continue' && extra) {
       add({ name: 'Continue here', area: 'Where you stopped', desc: 'Pick up right where you left off.', color: '#ffffff', featured: false, badge: 'YOU', x: extra.x, z: extra.z, choice: 'stay' });
     }
+    if (work) add({ name: work.name, area: work.area, desc: work.desc, color: work.color, featured: false, badge: 'WORK', x: work.x, z: work.z, choice: work });
     for (const t of TRAVEL) add({ name: t.name, area: t.area, desc: t.desc, color: t.color, featured: t.featured, x: t.pin?.x ?? t.x, z: t.pin?.z ?? t.z, choice: t });
 
     const title = mode === 'taxi' ? 'Where we dey go, boss?' : 'Where you dey go?';

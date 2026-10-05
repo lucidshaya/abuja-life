@@ -1,4 +1,4 @@
-import { BILLS, TRANSFER_FEE, unlockedContacts, type Contact, type Msg, type PhoneState } from '../phone/PhoneData';
+import { BILLS, TRANSFER_FEE, unlockedContacts, type Contact, type Mail, type Msg, type PhoneState } from '../phone/PhoneData';
 import { formatClock } from '../world/DayNight';
 import { $, h, naira, show } from './dom';
 
@@ -14,6 +14,12 @@ export interface PhoneHost {
   musicVolume: () => number;
   quality: () => string;
   transfer: (c: Contact, amount: number) => string | null;
+  /** Send to any account by name. */
+  sendAny: (name: string, bank: string, amount: number) => string | null;
+  /** Ask a contact for money. Returns what they replied. */
+  request: (c: Contact, amount: number) => string;
+  email: () => string;
+  roleName: () => string | null;
   payBill: (id: string) => string | null;
   call: (c: Contact) => void;
   toggleMute: () => void;
@@ -26,7 +32,7 @@ export interface PhoneHost {
   click: () => void;
 }
 
-type Screen = 'home' | 'bank' | 'transfer' | 'bills' | 'messages' | 'thread' | 'contacts' | 'call' | 'music' | 'maps' | 'settings';
+type Screen = 'home' | 'bank' | 'transfer' | 'sendany' | 'request' | 'bills' | 'mail' | 'mailview' | 'messages' | 'thread' | 'contacts' | 'call' | 'music' | 'maps' | 'settings';
 
 const WALLPAPERS = [
   'linear-gradient(160deg, #0f8a4b 0%, #08321d 60%, #041a0f 100%)',
@@ -37,7 +43,8 @@ const WALLPAPERS = [
 
 const APPS: { id: Screen; name: string; color: string; glyph: string }[] = [
   { id: 'bank', name: 'OPay', color: '#16b464', glyph: '₦' },
-  { id: 'messages', name: 'Messages', color: '#2a9df4', glyph: '✉' },
+  { id: 'messages', name: 'Messages', color: '#2a9df4', glyph: '💬' },
+  { id: 'mail', name: 'Mail', color: '#d93b30', glyph: '✉' },
   { id: 'contacts', name: 'Contacts', color: '#f2a516', glyph: '☎' },
   { id: 'music', name: 'Music', color: '#e8364f', glyph: '♫' },
   { id: 'maps', name: 'Maps', color: '#0f8a4b', glyph: '⌖' },
@@ -55,6 +62,8 @@ export class Phone {
   private thread: string | null = null;
   private transferTo: Contact | null = null;
   private calling: Contact | null = null;
+  private mailOpen: Mail | null = null;
+  private requestFrom: Contact | null = null;
   private toast = '';
   onClose: () => void = () => {};
 
@@ -72,6 +81,10 @@ export class Phone {
 
   unread(): number {
     return this.host.state.messages.filter((m) => !m.read).length;
+  }
+
+  unreadMail(): number {
+    return this.host.state.mail.filter((m) => !m.read).length;
   }
 
   show(screen: Screen = 'home'): void {
@@ -92,7 +105,7 @@ export class Phone {
 
   /** Back button / Esc: go up one level, or close from home. */
   back(): void {
-    const up: Partial<Record<Screen, Screen>> = { bank: 'home', transfer: 'bank', bills: 'bank', messages: 'home', thread: 'messages', contacts: 'home', call: 'contacts', music: 'home', maps: 'home', settings: 'home' };
+    const up: Partial<Record<Screen, Screen>> = { bank: 'home', transfer: 'bank', sendany: 'bank', request: 'bank', bills: 'bank', mail: 'home', mailview: 'mail', messages: 'home', thread: 'messages', contacts: 'home', call: 'contacts', music: 'home', maps: 'home', settings: 'home' };
     const to = up[this.screen];
     if (to) this.go(to);
     else this.close();
@@ -135,6 +148,10 @@ export class Phone {
       case 'home': return this.renderHome(b);
       case 'bank': return this.renderBank(b);
       case 'transfer': return this.renderTransfer(b);
+      case 'sendany': return this.renderSendAny(b);
+      case 'request': return this.renderRequest(b);
+      case 'mail': return this.renderMail(b);
+      case 'mailview': return this.renderMailView(b);
       case 'bills': return this.renderBills(b);
       case 'messages': return this.renderMessages(b);
       case 'thread': return this.renderThread(b);
@@ -148,11 +165,12 @@ export class Phone {
 
   private renderHome(b: HTMLElement): void {
     const unread = this.unread();
+    const unreadMail = this.unreadMail();
     b.append(
       h('div.ph-clock', {}, h('div.ph-time', { text: formatClock(this.host.hour()) }), h('div.ph-date', { text: `Day ${this.host.day()} • Abuja, FCT` })),
       h('div.ph-grid', {}, ...APPS.map((a) =>
         h('button.ph-app', { type: 'button', onclick: () => this.go(a.id) },
-          h('span.ph-icon', { style: `background:${a.color}`, text: a.glyph }, a.id === 'messages' && unread ? h('span.ph-badge', { text: String(unread) }) : null),
+          h('span.ph-icon', { style: `background:${a.color}`, text: a.glyph }, a.id === 'messages' && unread ? h('span.ph-badge', { text: String(unread) }) : a.id === 'mail' && unreadMail ? h('span.ph-badge', { text: String(unreadMail) }) : null),
           h('span.ph-appname', { text: a.name }),
         ))),
       h('div.ph-widget', {}, h('span', { text: 'OPay balance' }), h('b', { text: this.host.state.hideBalance ? '₦ ••••••' : naira(this.host.money()) })),
@@ -171,9 +189,10 @@ export class Phone {
         h('div.bk-acct', { text: 'Acct: 81' + String(4400000 + this.host.playerName().length * 7919).slice(0, 8) + ' • OPay Digital Services' }),
       ),
       h('div.bk-actions', {},
-        h('button.bk-act', { type: 'button', onclick: () => this.go('transfer') }, h('span', { text: '↗' }), 'Transfer'),
-        h('button.bk-act', { type: 'button', onclick: () => this.go('bills') }, h('span', { text: '📶' }), 'Airtime & Data'),
-        h('button.bk-act', { type: 'button', onclick: () => this.go('bills') }, h('span', { text: '💡' }), 'Pay Bills'),
+        h('button.bk-act', { type: 'button', onclick: () => this.go('transfer') }, h('span', { text: '↗' }), 'To contacts'),
+        h('button.bk-act', { type: 'button', onclick: () => this.go('sendany') }, h('span', { text: '🏦' }), 'To any account'),
+        h('button.bk-act', { type: 'button', onclick: () => { this.requestFrom = null; this.go('request'); } }, h('span', { text: '↙' }), 'Request money'),
+        h('button.bk-act', { type: 'button', onclick: () => this.go('bills') }, h('span', { text: '💡' }), 'Airtime & Bills'),
       ),
       this.toastEl(),
       h('div.bk-section', { text: 'Transaction history' }),
@@ -217,6 +236,90 @@ export class Phone {
         }, naira(a)))),
       h('button.ph-btn.ghost', { type: 'button', onclick: () => { this.transferTo = null; this.render(); } }, 'Choose someone else'),
     );
+  }
+
+  private renderSendAny(b: HTMLElement): void {
+    const banks = ['OPay', 'Moniepoint', 'PalmPay', 'Kuda', 'GTBank', 'Access Bank', 'First Bank', 'Zenith Bank', 'UBA'];
+    const name = h('input.ph-input', { type: 'text', placeholder: 'Account name (e.g. Musa Ibrahim)', maxlength: 32, 'aria-label': 'Account name' }) as HTMLInputElement;
+    const acct = h('input.ph-input', { type: 'text', inputmode: 'numeric', placeholder: '10-digit account number', maxlength: 10, 'aria-label': 'Account number' }) as HTMLInputElement;
+    const bank = h('select.ph-input', { 'aria-label': 'Bank' }, ...banks.map((x) => h('option', { value: x, text: x }))) as HTMLSelectElement;
+    const amt = h('input.ph-input', { type: 'text', inputmode: 'numeric', placeholder: 'Amount (₦)', maxlength: 9, 'aria-label': 'Amount' }) as HTMLInputElement;
+    acct.addEventListener('input', () => (acct.value = acct.value.replace(/\D/g, '')));
+    amt.addEventListener('input', () => (amt.value = amt.value.replace(/\D/g, '')));
+    // Typing in the phone must not move the player or trigger hotkeys.
+    for (const el of [name, acct, amt]) el.addEventListener('keydown', (e) => e.stopPropagation());
+    const quick = h('div.tf-amts', {}, ...[500, 2000, 10000, 50000].map((a) => h('button.tf-amt', { type: 'button', onclick: () => { amt.value = String(a); } }, naira(a))));
+    const send = h('button.ph-btn', {
+      type: 'button',
+      onclick: () => {
+        const n = name.value.trim();
+        const a = parseInt(amt.value, 10) || 0;
+        if (n.length < 2) this.toast = 'Enter the account name.';
+        else if (acct.value.length !== 10) this.toast = 'Account number must be 10 digits.';
+        else if (a < 50) this.toast = 'Minimum transfer na ₦50.';
+        else {
+          const err = this.host.sendAny(n, bank.value, a);
+          this.toast = err ?? `Sent ${naira(a)} to ${n.toUpperCase()} (${bank.value}) ✅`;
+          if (!err) this.screen = 'bank';
+        }
+        this.render();
+      },
+    }, 'Send money ▸');
+    b.append(this.header('Send to any account', 'bank'), this.toastEl(),
+      h('div.sa-form', {}, name, acct, bank, amt, quick, h('div.bk-txd', { text: `Fee: ${naira(TRANSFER_FEE)} • Balance: ${naira(this.host.money())}` }), send));
+  }
+
+  private renderRequest(b: HTMLElement): void {
+    const contacts = unlockedContacts(this.host.flags());
+    b.append(this.header('Request money', 'bank'), this.toastEl());
+    if (!this.requestFrom) {
+      b.append(h('div.bk-section', { text: 'Ask who?' }), h('div.ct-list', {}, ...contacts.map((c) =>
+        h('button.ct-row', { type: 'button', onclick: () => { this.host.click(); this.requestFrom = c; this.render(); } }, this.avatar(c), h('span', { text: c.name })))));
+      return;
+    }
+    const c = this.requestFrom;
+    b.append(
+      h('div.tf-to', {}, this.avatar(c), h('div', {}, h('div.tf-name', { text: c.name }), h('div.bk-txd', { text: 'They go reply your request by text.' }))),
+      h('div.tf-amts', {}, ...[1000, 5000, 20000, 100000].map((a) =>
+        h('button.tf-amt', {
+          type: 'button',
+          onclick: () => {
+            this.toast = this.host.request(c, a);
+            this.requestFrom = null;
+            this.render();
+          },
+        }, naira(a)))),
+      h('button.ph-btn.ghost', { type: 'button', onclick: () => { this.requestFrom = null; this.render(); } }, 'Ask someone else'),
+    );
+  }
+
+  private renderMail(b: HTMLElement): void {
+    const mail = this.host.state.mail.slice().reverse();
+    const role = this.host.roleName();
+    b.append(this.header('Mail', 'home'), h('div.ml-addr', {}, h('span', { text: '✉ ' + this.host.email() }), role ? h('span.ml-role', { text: role }) : null));
+    if (!mail.length) {
+      b.append(h('div.ph-empty', { text: 'Your inbox is empty.' }));
+      return;
+    }
+    b.append(h('div.ct-list', {}, ...mail.map((m) =>
+      h('button.ms-row.ml-row' + (m.read ? '' : '.unread'), { type: 'button', onclick: () => { this.mailOpen = m; this.go('mailview'); } },
+        h('span.ct-av', { style: `background:${colorFor(m.from)}`, text: initials(m.from) }),
+        h('span.ms-mid', {}, h('span.ms-from', { text: m.from }), h('span.ml-subj', { text: m.subject }), h('span.ms-prev', { text: m.body.replace(/\n+/g, ' ') })),
+        h('span.ml-day', { text: `D${m.day}` }),
+      ))));
+  }
+
+  private renderMailView(b: HTMLElement): void {
+    const m = this.mailOpen;
+    if (!m) return this.renderMail(b);
+    m.read = true;
+    b.append(this.header('Mail', 'mail'),
+      h('div.ml-view', {},
+        h('div.ml-vsubj', { text: m.subject }),
+        h('div.ml-vfrom', {}, h('b', { text: m.from }), h('span', { text: ` → ${this.host.email()}` })),
+        h('div.bk-txd', { text: `Day ${m.day} • ${formatClock(m.hour)}` }),
+        h('div.ml-vbody', {}, ...m.body.split('\n').map((l) => (l ? h('p', { text: l }) : h('br')))),
+      ));
   }
 
   private renderBills(b: HTMLElement): void {

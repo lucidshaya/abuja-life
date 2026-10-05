@@ -1,5 +1,5 @@
 import type { Bindings } from './Input';
-import { defaultCharacter, type CharacterConfig } from '../player/CharacterConfig';
+import { defaultCharacter, upgradeCharacter, type CharacterConfig } from '../player/CharacterConfig';
 import { newPhoneState, parsePhone, type PhoneState } from '../phone/PhoneData';
 
 export type QualitySetting = 'auto' | 'low' | 'medium' | 'high';
@@ -30,6 +30,12 @@ export interface SaveData {
   flags: string[];
   settings: Settings;
   phone: PhoneState;
+  /** Role picked at New Life (see player/Roles.ts). */
+  role: string | null;
+  /** Game day of the last salary payment. */
+  lastSalaryDay: number;
+  /** Absolute game hour (day*24+hour) when the player last worked. */
+  lastWorkAbs: number;
 }
 
 export const SAVE_KEY = 'abuja-life-save-v1';
@@ -49,6 +55,9 @@ export function newSave(character: CharacterConfig = defaultCharacter()): SaveDa
     flags: [],
     settings: defaultSettings(),
     phone: newPhoneState(),
+    role: null,
+    lastSalaryDay: 1,
+    lastWorkAbs: -100,
   };
 }
 
@@ -82,13 +91,16 @@ export function parseSave(raw: string | null): SaveData | null {
   const s = { ...base.settings, ...(o.settings ?? {}) };
   return {
     version: 1,
-    character: { ...base.character, ...(o.character ?? {}) },
+    character: upgradeCharacter(o.character ?? {}),
     stats: { money: num(o.stats?.money, base.stats.money), clout: num(o.stats?.clout, base.stats.clout) },
     pos: o.pos && Number.isFinite(o.pos.x) && Number.isFinite(o.pos.z) ? { x: o.pos.x, z: o.pos.z, heading: num(o.pos.heading, 0) } : null,
     hour: num(o.hour, base.hour) % 24,
     day: Math.max(1, Math.floor(num(o.day, 1))),
     flags: Array.isArray(o.flags) ? o.flags.filter((f) => typeof f === 'string') : [],
     phone: parsePhone(o.phone),
+    role: typeof o.role === 'string' ? o.role : null,
+    lastSalaryDay: num(o.lastSalaryDay, 1),
+    lastWorkAbs: num(o.lastWorkAbs, -100),
     settings: {
       quality: (['auto', 'low', 'medium', 'high'] as const).includes(s.quality) ? s.quality : 'auto',
       sensitivity: Math.min(3, Math.max(0.2, num(s.sensitivity, 1))),

@@ -10,6 +10,7 @@ export class Hud {
   private money = h('span.money');
   private clout = h('span.clout');
   private clock = h('span.clock');
+  private role = h('div.role-label.hidden');
   private district = h('div.district-label');
   private prompt = h('div.prompt.hidden');
   private toast = h('div.toast.hidden');
@@ -24,7 +25,7 @@ export class Hud {
   bindings!: Bindings;
 
   constructor() {
-    const stats = h('div.stats', {}, h('div.bal-label', { text: 'OPay account balance' }), h('div.row', {}, this.money), h('div.row', {}, this.clout, this.clock), this.district);
+    const stats = h('div.stats', {}, this.role, h('div.bal-label', { text: 'OPay account balance' }), h('div.row', {}, this.money), h('div.row', {}, this.clout, this.clock), this.district);
     this.root.append(stats, h('div.minimap-wrap', {}, this.minimapCanvas), this.toast, this.prompt, this.feed, this.hints, this.speedo);
   }
 
@@ -57,6 +58,12 @@ export class Hud {
   resetDeltas(): void {
     this.lastMoney = NaN;
     this.lastClout = NaN;
+  }
+
+  setRole(text: string | null, color = '#f2c230'): void {
+    show(this.role, !!text);
+    this.role.textContent = text ?? '';
+    this.role.style.setProperty('--c', color);
   }
 
   setDistrict(name: string): void {
@@ -109,6 +116,6 @@ export class Hud {
     const move = this.device === 'gamepad' ? '<kbd>L</kbd> move <kbd>R</kbd> look' : `${k('forward')}${k('left')}${k('back')}${k('right')} move · mouse look`;
     this.hints.innerHTML = inCar
       ? `${move.replace('move', 'drive')}<br>${k('jump')} handbrake · ${k('sprint')} nitro · ${k('horn')} horn · ${k('vehicle')} exit<br>${k('map')} map · ${k('pause')} pause`
-      : `${move}<br>${k('sprint')} run · ${k('jump')} jump · ${k('interact')} talk · ${k('vehicle')} car<br>${k('map')} map · ${k('camera')} camera · ${k('pause')} pause`;
+      : `${move}<br>${k('sprint')} run · ${k('jump')} jump · ${k('interact')} talk · ${k('vehicle')} car<br>${k('dance')} dance · ${k('give')} give cash · ${k('phone')} phone<br>${k('map')} map & teleport · ${k('camera')} camera · ${k('pause')} pause`;
   }
 }

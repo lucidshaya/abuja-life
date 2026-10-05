@@ -20,8 +20,19 @@ export interface Tx {
   hour: number;
 }
 
+export interface Mail {
+  id: string;
+  from: string;
+  subject: string;
+  body: string;
+  day: number;
+  hour: number;
+  read: boolean;
+}
+
 export interface PhoneState {
   messages: Msg[];
+  mail: Mail[];
   txs: Tx[];
   wallpaper: number;
   hideBalance: boolean;
@@ -31,7 +42,7 @@ export interface PhoneState {
 }
 
 export function newPhoneState(): PhoneState {
-  return { messages: [], txs: [], wallpaper: 0, hideBalance: false, lastMorningDay: 0, lastGroupHour: 0 };
+  return { messages: [], mail: [], txs: [], wallpaper: 0, hideBalance: false, lastMorningDay: 0, lastGroupHour: 0 };
 }
 
 export function parsePhone(raw: unknown): PhoneState {
@@ -41,6 +52,7 @@ export function parsePhone(raw: unknown): PhoneState {
   const arr = <T>(v: unknown, ok: (x: T) => boolean): T[] => (Array.isArray(v) ? (v as T[]).filter(ok) : []);
   return {
     messages: arr<Msg>(o.messages, (m) => !!m && typeof m.text === 'string' && typeof m.from === 'string').slice(-150),
+    mail: arr<Mail>(o.mail, (m) => !!m && typeof m.subject === 'string' && typeof m.body === 'string' && typeof m.from === 'string').slice(-80),
     txs: arr<Tx>(o.txs, (t) => !!t && typeof t.amount === 'number' && typeof t.label === 'string').slice(-150),
     wallpaper: typeof o.wallpaper === 'number' ? o.wallpaper : 0,
     hideBalance: !!o.hideBalance,
@@ -155,4 +167,31 @@ let counter = 0;
 export function uid(prefix: string): string {
   counter = (counter + 1) % 1e6;
   return `${prefix}-${Date.now().toString(36)}-${counter}`;
+}
+
+/** How a contact answers "abeg send me money". Pure so it can be tested. */
+export function requestReply(c: Contact, amount: number, rng: () => number): { text: string; give: number } {
+  const generous: Record<string, number> = { mummy: 0.75, uncle: 0.45, bigjoe: 0.2, posbabe: 0.35, kola: 0.1 };
+  const p = (generous[c.id] ?? 0.15) * (amount > 20000 ? 0.4 : amount > 5000 ? 0.75 : 1);
+  if (rng() < p) {
+    const give = rng() < 0.7 ? amount : Math.max(500, Math.round(amount / 2 / 500) * 500);
+    const yes: Record<string, string> = {
+      mummy: give < amount ? `I only get small, my child. Manage this one. ❤️` : 'I don send am. Use am well o, no go spend am for nonsense!',
+      uncle: give < amount ? 'Na half I fit do o. Times hard.' : 'I don send am. Na loan o, no be dash!',
+    };
+    return { give, text: yes[c.id] ?? (give < amount ? 'Na this one I get. Manage am.' : 'Done! I don send am. 👍🏾') };
+  }
+  const no = [
+    'Ah, I no get kobo for account. Na salary I dey wait too 😭',
+    'Network no dey gree me send am. Try later.',
+    'Abeg I dey hold meeting, I go call you back.',
+    'Na you suppose dey send me money now! 😂',
+    'Hmm… I go see wetin I fit do.',
+  ];
+  const special: Record<string, string> = {
+    mummy: 'My child, I just pay your sister school fees. Next week by God grace.',
+    danladi: 'Boss, na me suppose collect money from you o! 😂',
+    okafor: 'Is this a joke? See me in my office.',
+  };
+  return { give: 0, text: special[c.id] && rng() < 0.6 ? special[c.id] : no[Math.floor(rng() * no.length)] };
 }

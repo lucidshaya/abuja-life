@@ -25,6 +25,7 @@ export class TouchControls {
   private btns: Record<string, HTMLButtonElement> = {};
   private actionBtn: HTMLButtonElement;
   private hornBtn: HTMLButtonElement;
+  private giveBtn: HTMLButtonElement;
   enabled = false;
 
   constructor(private input: Input) {
@@ -59,8 +60,9 @@ export class TouchControls {
       (this.actionBtn = mk('action', 'Talk', 'interact', false)),
       mk('car', 'Car', 'vehicle', false),
       (this.hornBtn = mk('horn', 'Horn', 'horn', false)),
+      (this.giveBtn = mk('give', 'Give', 'give', false)),
     );
-    const top = h('div.ttop', {}, mk('phone', 'Phone', 'phone', false), mk('map', 'Map', 'map', false), mk('pause', 'II', 'pause', false));
+    const top = h('div.ttop', {}, mk('dance', 'Dance', 'dance', false), mk('phone', 'Phone', 'phone', false), mk('map', 'Map', 'map', false), mk('pause', 'II', 'pause', false));
     this.root.append(this.lookZone, this.stickZone, cluster, top);
 
     this.stickZone.addEventListener('pointerdown', (e) => {
@@ -142,7 +144,8 @@ export class TouchControls {
     }
   }
 
-  setContext(inCar: boolean, action: string | null): void {
+  setContext(inCar: boolean, action: string | null, give: string | null = null): void {
+    show(this.giveBtn, !!give && !inCar);
     this.btns.jump.querySelector('span')!.textContent = inCar ? 'Brake' : 'Jump';
     this.btns.sprint.querySelector('span')!.textContent = inCar ? 'Nitro' : 'Run';
     this.btns.car.querySelector('span')!.textContent = inCar ? 'Exit' : 'Car';

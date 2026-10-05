@@ -180,15 +180,88 @@ export class Minimap {
   }
 }
 
-/** Full-screen city map (M). */
+export interface MapPlace {
+  name: string;
+  color: string;
+  /** Where the pin sits. */
+  x: number;
+  z: number;
+  /** Where teleporting puts you (defaults to the pin). */
+  to?: { x: number; z: number; heading: number };
+}
+
+/** Full-screen city map (M). Hover a place to see its name, click anywhere to teleport. */
 export class FullMap {
   private g: CanvasRenderingContext2D;
+  private view = { ox: 0, oy: 0, s: 1 };
+  private last: { px: number; pz: number; heading: number; markers: MapMarker[] } | null = null;
+  places: MapPlace[] = [];
+  private hover: { place: MapPlace | null; sx: number; sy: number } | null = null;
+  onTeleport: (place: MapPlace | null, x: number, z: number) => void = () => {};
 
   constructor(readonly canvas: HTMLCanvasElement, private img: MapImage) {
     this.g = canvas.getContext('2d')!;
+    canvas.addEventListener('pointermove', (e) => {
+      const r = canvas.getBoundingClientRect();
+      const sx = e.clientX - r.left;
+      const sy = e.clientY - r.top;
+      this.hover = { place: this.placeAt(sx, sy, e.pointerType === 'touch' ? 22 : 14), sx, sy };
+      canvas.style.cursor = this.inside(sx, sy) ? 'pointer' : 'default';
+      this.redraw();
+    });
+    canvas.addEventListener('pointerleave', () => {
+      this.hover = null;
+      this.redraw();
+    });
+    canvas.addEventListener('click', (e) => {
+      const r = canvas.getBoundingClientRect();
+      const sx = e.clientX - r.left;
+      const sy = e.clientY - r.top;
+      const place = this.placeAt(sx, sy, 22);
+      if (place) return this.onTeleport(place, place.to?.x ?? place.x, place.to?.z ?? place.z);
+      if (!this.inside(sx, sy)) return;
+      const w = this.toWorld(sx, sy);
+      this.onTeleport(null, w.x, w.z);
+    });
+  }
+
+  private toWorld(sx: number, sy: number): { x: number; z: number } {
+    const { ox, oy, s } = this.view;
+    const ix = (sx - ox) / s;
+    const iy = (sy - oy) / s;
+    return { x: WORLD.x0 + (ix / this.img.canvas.width) * (WORLD.x1 - WORLD.x0), z: WORLD.z0 + (iy / this.img.canvas.height) * (WORLD.z1 - WORLD.z0) };
+  }
+
+  private toScreen(x: number, z: number): [number, number] {
+    const [a, b] = this.img.worldToImg(x, z);
+    return [this.view.ox + a * this.view.s, this.view.oy + b * this.view.s];
+  }
+
+  private inside(sx: number, sy: number): boolean {
+    const w = this.toWorld(sx, sy);
+    return w.x > WORLD.x0 + 4 && w.x < WORLD.x1 - 4 && w.z > WORLD.z0 + 4 && w.z < WORLD.z1 - 4;
+  }
+
+  private placeAt(sx: number, sy: number, r: number): MapPlace | null {
+    let best: MapPlace | null = null;
+    let bd = r * r;
+    for (const p of this.places) {
+      const [a, b] = this.toScreen(p.x, p.z);
+      const d = (a - sx) ** 2 + (b - sy) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  private redraw(): void {
+    if (this.last) this.draw(this.last.px, this.last.pz, this.last.heading, this.last.markers);
   }
 
   draw(px: number, pz: number, heading: number, markers: MapMarker[]): void {
+    this.last = { px, pz, heading, markers };
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const W = this.canvas.clientWidth;
     const H = this.canvas.clientHeight;
@@ -201,6 +274,7 @@ export class FullMap {
     const s = Math.min(W / iw, H / ih) * 0.96;
     const ox = (W - iw * s) / 2;
     const oy = (H - ih * s) / 2;
+    this.view = { ox, oy, s };
     g.clearRect(0, 0, W, H);
     g.drawImage(this.img.canvas, ox, oy, iw * s, ih * s);
     const P = (x: number, z: number): [number, number] => {
@@ -254,8 +328,40 @@ export class FullMap {
         g.fillText(m.label, a, b + 0.5);
       }
     }
+    // Teleport pins for every place.
+    const hv = this.hover;
+    for (const p of this.places) {
+      const [a, b] = P(p.x, p.z);
+      const on = hv?.place === p;
+      g.beginPath();
+      g.arc(a, b, on ? 10 : 7.5, 0, Math.PI * 2);
+      g.fillStyle = p.color;
+      g.fill();
+      g.lineWidth = on ? 3 : 2;
+      g.strokeStyle = on ? '#f2c230' : '#ffffff';
+      g.stroke();
+    }
     const [a, b] = P(px, pz);
     arrow(g, a, b, Math.atan2(Math.cos(heading), Math.sin(heading)), 11, '#ffffff');
+    if (hv && (hv.place || this.inside(hv.sx, hv.sy))) {
+      const text = hv.place ? `${hv.place.name} — click to teleport` : 'Click to teleport here';
+      g.font = '800 13px system-ui';
+      const tw = g.measureText(text).width + 18;
+      const [tx, ty] = hv.place ? P(hv.place.x, hv.place.z) : [hv.sx, hv.sy];
+      const bx = Math.min(W - tw - 4, Math.max(4, tx - tw / 2));
+      const by = Math.max(4, ty - 38);
+      g.fillStyle = 'rgba(8, 20, 12, 0.92)';
+      g.beginPath();
+      g.roundRect(bx, by, tw, 26, 8);
+      g.fill();
+      g.strokeStyle = hv.place?.color ?? '#f2c230';
+      g.lineWidth = 2;
+      g.stroke();
+      g.fillStyle = '#fff';
+      g.textAlign = 'left';
+      g.fillText(text, bx + 9, by + 13.5);
+      g.textAlign = 'center';
+    }
   }
 }
 

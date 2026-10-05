@@ -4,6 +4,7 @@ import { mulberry32 } from '../core/rng';
 import { Character } from '../player/Character';
 import { randomCharacter, type CharacterConfig } from '../player/CharacterConfig';
 import type { Rect } from './MapData';
+import type { Person } from './Npc';
 
 type Pose = Character['pose'];
 
@@ -157,6 +158,25 @@ export class Crowds {
       d -= seg;
     }
     return { x: path[0][0], z: path[0][1], h: 0 };
+  }
+
+  /** Closest person in an active crowd (for giving cash). */
+  nearest(x: number, z: number, maxD: number): Person | null {
+    let best: Agent | null = null;
+    let bd = maxD * maxD;
+    for (const g of this.groups) {
+      if (!g.active) continue;
+      for (const a of g.agents) {
+        const d = (a.x - x) ** 2 + (a.z - z) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = a;
+        }
+      }
+    }
+    if (!best) return null;
+    const a = best;
+    return { char: a.char, x: a.x, z: a.z, hold: (sec) => (a.pause = Math.max(a.pause, sec)) };
   }
 
   update(dt: number, px: number, pz: number): void {

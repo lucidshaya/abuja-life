@@ -7,9 +7,12 @@ import { loadSave, newSave, writeSave, type SaveData, type Settings } from './Sa
 import { clamp } from './rng';
 import { EventSystem, applyEffects, linesFor, meets, type EventContext, type GameEvent, type Outcome } from '../events/EventSystem';
 import { EVENTS } from '../events/eventsData';
+import { withRoleChoices } from '../events/roleChoices';
 import { CameraRig } from '../player/CameraRig';
-import { Character } from '../player/Character';
-import { STARTING_STATS, type CharacterConfig } from '../player/CharacterConfig';
+import { Character, EMOTES } from '../player/Character';
+import { STARTING_STATS, upgradeCharacter, type CharacterConfig } from '../player/CharacterConfig';
+import { playerEmail, roleById, type Role } from '../player/Roles';
+import { RolePicker } from '../ui/RolePicker';
 import { PlayerController } from '../player/PlayerController';
 import { Vehicle } from '../player/Vehicle';
 import { buildCity } from '../world/CityBuilder';
@@ -20,14 +23,19 @@ import { updateGlowMaterials, worldUniforms } from '../world/Materials';
 import { Npcs } from '../world/Npc';
 import { Traffic } from '../world/Traffic';
 import { Crowds } from '../world/Crowd';
-import { PORTALS, interiorAt, type Interior, type Portal, type TravelSpot } from '../world/locations/Locations';
+import { PORTALS, TRAVEL, interiorAt, type Interior, type Portal, type TravelSpot } from '../world/locations/Locations';
+import { QUICK_ZONES, quickZoneAt, type QuickItem, type QuickZone } from '../world/locations/QuickPlaces';
+import { QuickActions, type QuickEntry } from '../ui/QuickActions';
+import { EmoteMenu } from '../ui/EmoteMenu';
+import type { Person } from '../world/Npc';
 import { buildMall } from '../world/locations/Mall';
 import { buildNile } from '../world/locations/Nile';
 import { buildPark } from '../world/locations/Park';
 import { buildCage, buildGuzape } from '../world/locations/Small';
+import { ABUJA2_QUICK, buildAbuja2 } from '../world/locations/Abuja2';
 import { TravelMenu, type TravelChoice, type TravelMode } from '../ui/TravelMenu';
 import { Phone } from '../ui/Phone';
-import { BILLS, FLAG_TEXTS, TAXI_FARE, groupText, morningText, transferOp, uid, type Contact } from '../phone/PhoneData';
+import { BILLS, FLAG_TEXTS, TAXI_FARE, TRANSFER_FEE, groupText, morningText, requestReply, transferOp, uid, type Contact } from '../phone/PhoneData';
 import { clearTrack, loadTrack, saveTrack } from './TrackStore';
 import { CAR_MODELS } from '../player/Vehicle';
 import { Customizer } from '../ui/Customizer';
@@ -49,7 +57,7 @@ export class Game {
   readonly world = new CollisionWorld();
   readonly input: Input;
   readonly audio = new Audio();
-  readonly events = new EventSystem(EVENTS);
+  readonly events = new EventSystem(withRoleChoices(EVENTS));
   readonly touch: boolean;
 
   state: State = 'loading';
@@ -78,6 +86,13 @@ export class Game {
   private dialogue!: Dialogue;
   private menus!: Menus;
   private customizer!: Customizer;
+  private rolePicker!: RolePicker;
+  private quick!: QuickActions;
+  private quickActs: (() => void)[] = [];
+  private quickZones: QuickZone[] = [...QUICK_ZONES, ...ABUJA2_QUICK];
+  private emotes!: EmoteMenu;
+  private cheerAt = -999;
+  private giveTarget: { name: string; person: Person | null; spot: NpcSpot | null; almajiri: boolean } | null = null;
   private touchUi!: TouchControls;
   private district: string | null = null;
   private blackout = 0;
@@ -138,7 +153,7 @@ export class Game {
     this.animators.push(...lm.animators);
     progress(0.55, 'Stocking ShopRite shelves and filling Millennium Park…');
     await nextFrame();
-    const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world)];
+    const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world), buildAbuja2(this.world)];
     for (const l of locs) {
       this.scene.add(l.group);
       this.animators.push(...l.animators);
@@ -204,14 +219,32 @@ export class Game {
         h('button.btn.small.primary', { type: 'button', onclick: () => { show($('map'), false); this.openTravel('pause'); } }, 'Fast travel ▸'),
         h('button.btn.small', { type: 'button', onclick: () => this.closeMap() }, 'Close ✕'))),
       mapCanvas,
-      h('div.map-legend', { html: '<span class="dot y"></span> Talk to people &nbsp; <span class="dot b"></span> Cars &nbsp; <span class="dot h"></span> Your flat' }),
+      h('div.map-legend', { html: '<b>Click a place or anywhere on the map to teleport.</b> &nbsp; <span class="dot y"></span> Talk to people &nbsp; <span class="dot b"></span> Cars &nbsp; <span class="dot h"></span> Your flat' }),
     );
     this.fullMap = new FullMap(mapCanvas, img);
     this.dialogue = new Dialogue();
     this.dialogue.onClick = () => this.audio.click();
-    this.dialogue.keyLabel = (i) => (this.input.device === 'gamepad' ? ['↑', '←', '↓'][i] : String(i + 1));
+    this.dialogue.keyLabel = (i) => (this.input.device === 'gamepad' ? ['↑', '←', '↓', '→'][i] : String(i + 1));
     this.customizer = new Customizer();
     this.customizer.onClick = () => this.audio.click();
+    this.rolePicker = new RolePicker();
+    this.rolePicker.onClick = () => this.audio.click();
+    this.quick = new QuickActions(document.body);
+    this.quick.onClick = () => this.audio.click();
+    this.quick.onPick = (i) => this.quickActs[i]?.();
+    this.emotes = new EmoteMenu(document.body);
+    this.emotes.onClick = () => this.audio.click();
+    this.emotes.onPick = (id) => this.startEmote(id);
+    window.addEventListener('keydown', (e) => {
+      const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
+      if (!m || this.state !== 'play') return;
+      const i = Number(m[1]) - 1;
+      if (this.emotes.open) this.emotes.pick(i);
+      else this.quick.press(i);
+    });
+    this.fullMap.places = TRAVEL.map((t) => ({ name: t.name, color: t.color, x: t.pin?.x ?? t.x, z: t.pin?.z ?? t.z, to: { x: t.x, z: t.z, heading: t.heading } }));
+    this.fullMap.places.unshift({ name: 'Abuja City Gate', color: '#0f7a45', x: LANDMARKS.cityGate.x, z: LANDMARKS.cityGate.z, to: SPAWN });
+    this.fullMap.onTeleport = (place, x, z) => this.mapTeleport(place?.name ?? null, x, z, place?.to?.heading);
     this.touchUi = new TouchControls(this.input);
     this.menus = new Menus(this.input, {
       onContinue: () => this.continueGame(),
@@ -257,6 +290,26 @@ export class Game {
       musicVolume: () => this.save.settings.musicVolume,
       quality: () => this.save.settings.quality,
       transfer: (c, amount) => this.bankOp(transferOp(c, amount)),
+      sendAny: (name, bank, amount) => this.bankOp({ label: `Transfer to ${name.toUpperCase()} (${bank})`, amount: -(amount + TRANSFER_FEE), clout: amount >= 50000 ? 1 : 0 }),
+      request: (c, amount) => {
+        const key = `req:${c.id}:${this.day}`;
+        if (this.flags.has(key)) return `You don already ask ${c.name} today. No disturb them.`;
+        this.flags.add(key);
+        const r = requestReply(c, amount, Math.random);
+        window.setTimeout(() => {
+          this.addMsg(c.name, r.text);
+          if (r.give > 0) {
+            this.save.stats = applyEffects(this.save.stats, { money: r.give });
+            this.addTx(`From ${c.name}`, r.give);
+            this.addMsg('OPay', `Credit alert! +${naira(r.give)} from ${c.name}. Balance: ${naira(this.save.stats.money)}`);
+            this.audio.coin();
+          }
+          this.persist();
+        }, 2500 + Math.random() * 2500);
+        return `Request for ${naira(amount)} sent to ${c.name} ✅ Wait for their reply.`;
+      },
+      email: () => playerEmail(this.save.character.name, this.role),
+      roleName: () => this.role?.name ?? null,
       payBill: (id) => {
         const bill = BILLS.find((x) => x.id === id);
         if (!bill) return 'Unknown bill';
@@ -350,27 +403,104 @@ export class Game {
   private newGame(): void {
     this.state = 'customize';
     this.menus.hideAll();
-    this.customizer.open(this.save.character, 'new', (cfg) => {
-      this.customizer.close();
-      const settings = this.save.settings;
-      this.save = newSave(cfg);
-      this.save.settings = settings;
-      this.save.stats = { ...STARTING_STATS[cfg.background] };
-      this.flags = new Set();
-      this.hour = 8.5;
-      this.day = 1;
-      this.playTime = 0;
-      this.events.markFired('mummy', 0);
-      this.playerChar.build(cfg);
-      this.leaveCar(true);
-      this.resetCars();
-      this.player.teleport(SPAWN.x, SPAWN.z, SPAWN.heading);
-      this.rig.snapBehind(SPAWN.heading);
-      this.addTx('Opening balance', this.save.stats.money);
-      this.addMsg('OPay', `Welcome to OPay, ${cfg.name}! Your wallet is ready with ${naira(this.save.stats.money)}. Spend wisely for Abuja 😉`, false);
-      this.addMsg('Mummy ❤️', 'My child, you don reach Abuja? Call me when you settle. Love you!', false);
-      this.persist();
-      this.openTravel('start');
+    this.hud.setVisible(false);
+    // 1) Pick a role, 2) customise the look (pre-dressed for the role), 3) pick where to start.
+    this.rolePicker.show((role) => {
+      this.rolePicker.close();
+      const base = upgradeCharacter({ ...this.save.character });
+      const look = { ...role.look };
+      const dressed: CharacterConfig = { ...base, ...look };
+      this.customizer.open(dressed, 'new', (cfg) => {
+        this.customizer.close();
+        this.beginLife(cfg, role);
+      });
+    }, () => {
+      this.rolePicker.close();
+      this.goMenu();
+    });
+  }
+
+  private beginLife(cfg: CharacterConfig, role: Role): void {
+    const settings = this.save.settings;
+    this.save = newSave(cfg);
+    this.save.settings = settings;
+    this.save.role = role.id;
+    const bonus = STARTING_STATS[cfg.background];
+    this.save.stats = { money: role.money + bonus.money, clout: role.clout + bonus.clout };
+    this.save.lastSalaryDay = 1;
+    this.flags = new Set(['role:' + role.id]);
+    this.hour = 8.5;
+    this.day = 1;
+    this.playTime = 0;
+    this.events.markFired('mummy', 0);
+    this.playerChar.build(cfg);
+    this.leaveCar(true);
+    this.resetCars();
+    this.player.teleport(SPAWN.x, SPAWN.z, SPAWN.heading);
+    this.rig.snapBehind(SPAWN.heading);
+    this.addTx('Opening balance', role.money);
+    if (bonus.money) this.addTx(`Gift from home (${cfg.background})`, bonus.money);
+    this.addMsg('OPay', `Welcome to OPay, ${cfg.name}! Your account is ready with ${naira(this.save.stats.money)}. Spend wisely for Abuja 😉`, false);
+    this.addMsg('Mummy ❤️', 'My child, you don reach Abuja? Call me when you settle. Love you!', false);
+    this.addMail('Abuja Life', `Welcome to Abuja, ${cfg.name}!`, `Your email address is ${playerEmail(cfg.name, role)}.\n\nYou are now a ${role.name}. ${role.blurb}\n\n${role.salary ? `Your pay of ${naira(role.salary)} lands in your OPay account every morning at 8am.` : 'You earn money by working — go to ' + role.workplace.name + ' and open the quick actions.'}\n\nPerk: ${role.perk}`, false);
+    this.addMail(role.workplace.name, role.email.welcome.subject, role.email.welcome.body, false);
+    this.persist();
+    this.openTravel('start');
+  }
+
+  get role(): Role | null {
+    return roleById(this.save.role);
+  }
+
+  /** Daily pay at 8am for salaried roles. */
+  private payday(): void {
+    const role = this.role;
+    if (!role || !role.salary) return;
+    if (this.day <= this.save.lastSalaryDay || this.hour < 8) return;
+    const days = Math.min(3, this.day - this.save.lastSalaryDay);
+    this.save.lastSalaryDay = this.day;
+    const amount = role.salary * days;
+    this.save.stats = applyEffects(this.save.stats, { money: amount });
+    this.addTx(`Salary — ${role.salaryFrom}`, amount);
+    this.addMsg('OPay', `Credit alert! +${naira(amount)} from ${role.salaryFrom}. Balance: ${naira(this.save.stats.money)}`);
+    this.addMail(role.salaryFrom, `Payslip — Day ${this.day}`, `Dear ${this.save.character.name},\n\n${naira(amount)} has been paid into your OPay account${days > 1 ? ` for ${days} days` : ''}.\n\nRole: ${role.name}\nWorkplace: ${role.workplace.name}`, false);
+    this.audio.coin();
+  }
+
+  /** Hours until the player can work again (0 = ready). */
+  private workCooldown(): number {
+    return Math.max(0, this.save.lastWorkAbs + 8 - (this.day * 24 + this.hour));
+  }
+
+  private nearWorkplace(x: number, z: number): boolean {
+    const r = this.role;
+    return !!r && !this.indoor && Math.hypot(r.workplace.x - x, r.workplace.z - z) < 40;
+  }
+
+  /** "Go to work" from the quick panel: time passes, money and clout come in. */
+  private doWork(): void {
+    const role = this.role;
+    if (!role || this.state !== 'play') return;
+    const wait = this.workCooldown();
+    if (wait > 0) {
+      this.hud.notify(`You don work already. Rest small — come back in ${Math.ceil(wait)}h.`, 'bad');
+      return;
+    }
+    const w = role.work;
+    const pay = Math.round((w.pay[0] + Math.random() * (w.pay[1] - w.pay[0])) / 50) * 50;
+    const line = w.lines[Math.floor(Math.random() * w.lines.length)];
+    this.save.lastWorkAbs = this.day * 24 + this.hour;
+    this.beginDialogue(null);
+    this.dialogue.start({
+      title: role.workplace.name,
+      speaker: `${role.name} life`,
+      lines: [line],
+      choices: [{ text: pay > 0 ? `Collect ${naira(pay)}` : 'Close shop for today' }],
+      onChoice: () => ({
+        text: pay > 0 ? `Work don finish. ${naira(pay)} enter your OPay.` : 'Work don finish. Na experience you gain today.',
+        tags: this.applyOutcome({ text: '', effects: { money: pay, clout: w.clout, timeSkip: w.hours } }, `Work — ${role.workplace.name}`),
+      }),
+      onClose: () => this.endDialogue(),
     });
   }
 
@@ -396,6 +526,17 @@ export class Game {
     this.phone?.refresh();
   }
 
+  addMail(from: string, subject: string, body: string, notify = true): void {
+    this.save.phone.mail.push({ id: uid('e'), from, subject, body, day: this.day, hour: this.hour, read: false });
+    if (this.save.phone.mail.length > 80) this.save.phone.mail.splice(0, this.save.phone.mail.length - 80);
+    if (notify && (this.state === 'play' || this.state === 'phone')) {
+      this.hud.notify(`✉️ ${from}: ${subject}`, 'info');
+      this.audio.chime();
+    }
+    this.syncPhoneBadge();
+    this.phone?.refresh();
+  }
+
   addTx(label: string, amount: number): void {
     if (!amount) return;
     this.save.phone.txs.push({ id: uid('t'), label, amount, day: this.day, hour: this.hour });
@@ -411,7 +552,7 @@ export class Game {
 
   private syncPhoneBadge(): void {
     if (!this.phoneBtn) return;
-    const n = this.save.phone.messages.filter((m) => !m.read).length;
+    const n = this.save.phone.messages.filter((m) => !m.read).length + this.save.phone.mail.filter((m) => !m.read).length;
     this.phoneBtn.dataset.badge = n ? String(n) : '';
     this.touchUi?.setPhoneBadge(n);
   }
@@ -449,6 +590,7 @@ export class Game {
 
   /** Per-frame: morning texts from Mummy, group chat banter. */
   private phoneTick(): void {
+    this.payday();
     const ph = this.save.phone;
     if (this.day > ph.lastMorningDay && this.hour >= 7.5 && this.hour < 12) {
       ph.lastMorningDay = this.day;
@@ -482,7 +624,12 @@ export class Game {
         this.menus.showPause();
       } else this.startPlay();
     } : undefined;
-    this.travel.show(mode, (c) => this.travelTo(c, mode), back, mode === 'continue' ? { x: p.x, z: p.z } : undefined);
+    const r = this.role;
+    const work: TravelSpot | undefined = r ? {
+      id: 'work', name: 'Your workplace', area: r.workplace.name, featured: false, color: r.color,
+      desc: `Go to work as ${r.name}: ${r.work.label.toLowerCase()}.`, x: r.workplace.x, z: r.workplace.z, heading: r.workplace.heading,
+    } : undefined;
+    this.travel.show(mode, (c) => this.travelTo(c, mode), back, mode === 'continue' ? { x: p.x, z: p.z } : undefined, work);
   }
 
   /** Bird's-eye view: lift the fog so the whole city is visible from above. */
@@ -612,11 +759,27 @@ export class Game {
     this.rig.snapBehind(p.heading);
     this.menus.hideAll();
     this.syncPhoneBadge();
+    if (!this.role) {
+      // Saves from before roles existed: pick one now, keep your money.
+      this.state = 'customize';
+      this.rolePicker.show((role) => {
+        this.rolePicker.close();
+        this.save.role = role.id;
+        this.save.lastSalaryDay = this.day;
+        this.flags.add('role:' + role.id);
+        this.addMail('Abuja Life', `You are now a ${role.name}`, `${role.blurb}\n\nYour email: ${playerEmail(this.save.character.name, role)}\nWorkplace: ${role.workplace.name}\nPerk: ${role.perk}`, false);
+        this.persist();
+        this.openTravel('continue');
+      });
+      return;
+    }
     this.openTravel('continue');
   }
 
   private startPlay(): void {
     this.state = 'play';
+    const role = this.role;
+    this.hud.setRole(role ? `${this.save.character.name} · ${role.name}` : this.save.character.name, role?.color);
     this.syncPhoneBadge();
     this.hud.setVisible(true);
     this.hud.resetDeltas();
@@ -726,6 +889,9 @@ export class Game {
     this.input.update();
     document.body.classList.toggle('playing', this.state === 'play' || this.state === 'dialogue');
     if (this.input.wasPressed('mute')) this.toggleMute();
+    const playing = this.state === 'play';
+    this.quick.root.style.display = playing ? '' : 'none';
+    if (!playing && this.emotes.open) this.emotes.close();
     switch (this.state) {
       case 'play':
         this.updatePlay(dt);
@@ -801,6 +967,7 @@ export class Game {
       background: this.save.character.background,
       stats: this.save.stats,
       flags: this.flags,
+      role: this.save.role,
     };
   }
 
@@ -913,8 +1080,17 @@ export class Game {
       return;
     }
     if (inp.wasPressed('phone')) {
+      this.stopEmote();
       this.openPhone();
       return;
+    }
+    if (inp.wasPressed('cursor') && inp.device === 'keyboard') {
+      if (this.input.pointerLocked) this.unlockPointer();
+      else this.lockPointer();
+    }
+    if (inp.wasPressed('dance') && !this.car) {
+      if (this.playerChar.isEmoting || this.emotes.open) this.stopEmote();
+      else this.emotes.show(this.input.device === 'touch');
     }
     this.phoneTick();
     this.playTime += dt;
@@ -922,7 +1098,7 @@ export class Game {
     const look = inp.look(dt);
     const move = inp.move();
     const analog = inp.device !== 'keyboard';
-    let prompt: { action: 'interact' | 'vehicle'; text: string; touch: string } | null = null;
+    let prompt: { action: 'interact' | 'vehicle' | 'give'; text: string; touch: string } | null = null;
 
     if (this.car) {
       const car = this.car;
@@ -979,6 +1155,13 @@ export class Game {
         return;
       }
       if (car && inp.wasPressed('vehicle')) this.enterCar(car);
+      if (moving && this.playerChar.pose !== 'normal') this.stopEmote();
+      this.giveTarget = this.findGiveTarget(this.player.x, this.player.z);
+      if (this.giveTarget && !prompt) prompt = { action: 'give', text: this.role?.id === 'almajiri' ? `Ask ${this.giveTarget.name} for sadaka` : `Give ${this.giveTarget.name} cash`, touch: 'Give' };
+      if (this.giveTarget && inp.wasPressed('give')) {
+        this.giveCash(this.giveTarget);
+        return;
+      }
     }
     if (this.car && this.car.speed < 1 && this.nearestNpc(this.car.x, this.car.z, 4)) {
       const npc = this.nearestNpc(this.car.x, this.car.z, 4)!;
@@ -1028,7 +1211,8 @@ export class Game {
     this.hud.setStats(this.save.stats.money, this.save.stats.clout, this.hour, this.day);
     this.hud.setPrompt(prompt?.action ?? null, prompt?.text ?? '');
     this.hud.updateHints(this.save.settings.showHints, this.car !== null);
-    this.touchUi.setContext(this.car !== null, prompt?.touch ?? null);
+    this.touchUi.setContext(this.car !== null, prompt?.action === 'give' ? null : prompt?.touch ?? null, this.giveTarget && !this.car ? 'Give' : null);
+    this.updateQuick(p.x, p.z);
     this.minimapTimer -= dt;
     if (this.minimapTimer <= 0) {
       this.minimapTimer = 1 / 24;
@@ -1062,6 +1246,141 @@ export class Game {
   private drawFullMap(): void {
     const p = this.playerPos();
     this.fullMap.draw(p.x, p.z, p.heading, this.markers());
+  }
+
+
+  // --------------------------------------------------- quick actions & co
+  /** M map: click a place (or anywhere) to teleport there. */
+  private mapTeleport(name: string | null, x: number, z: number, heading?: number): void {
+    if (this.state !== 'map' || this.fading) return;
+    show($('map'), false);
+    this.leaveCar(true);
+    const q = { x, z };
+    if (!name) this.world.resolveCircle(q, 0.5, 0, false);
+    this.audio.click();
+    this.fadeTeleport(q.x, q.z, heading ?? this.player.heading, () => {
+      this.startPlay();
+      if (name) this.hud.showToast(name.toUpperCase(), 'Teleport don land you.');
+      this.persist();
+    });
+  }
+
+  /** Fade to a quick-action spot, then start the NPC talk if there is one. */
+  private quickGo(it: QuickItem): void {
+    if (this.state !== 'play' || this.fading) return;
+    this.leaveCar(true);
+    this.stopEmote();
+    this.fadeTeleport(it.x, it.z, it.heading, () => {
+      const spot = it.npc ? NPC_SPOTS.find((n) => n.id === it.npc) : null;
+      if (spot) window.setTimeout(() => {
+        if (this.state === 'play') this.talkTo(spot);
+      }, 350);
+    });
+  }
+
+  /** Build the side panel for wherever the player is standing. */
+  private updateQuick(x: number, z: number): void {
+    if (this.car) {
+      this.quick.set(null, [], false);
+      return;
+    }
+    const zone = quickZoneAt(this.quickZones, x, z);
+    const entries: QuickEntry[] = [];
+    const acts: (() => void)[] = [];
+    const role = this.role;
+    if (role && this.nearWorkplace(x, z)) {
+      const wait = this.workCooldown();
+      entries.push({ label: role.work.label, icon: '💼', note: wait > 0 ? `Rest first — ready in ${Math.ceil(wait)}h` : `+${role.work.hours}h • ${naira(role.work.pay[0])}–${naira(role.work.pay[1])}`, accent: true });
+      acts.push(() => this.doWork());
+    }
+    if (zone) for (const it of zone.items) {
+      entries.push({ label: it.label, icon: it.icon });
+      acts.push(() => this.quickGo(it));
+    }
+    if (!entries.length) {
+      this.quick.set(null, [], false);
+      return;
+    }
+    this.quickActs = acts;
+    this.quick.set(zone ? `Places in ${zone.name}` : role?.workplace.name ?? 'Work', entries, this.input.device === 'touch');
+  }
+
+  private startEmote(id: Character['pose']): void {
+    if (this.state !== 'play' || this.car) return;
+    this.playerChar.pose = id;
+    const e = EMOTES.find((x) => x.id === id);
+    if (e) this.hud.notify(`💃🏾 ${e.name}! Move to stop.`, 'info');
+    this.audio.click();
+    // People nearby hail you (once in a while).
+    const p = this.playerPos();
+    if (this.playTime - this.cheerAt > 60 && (this.crowds.nearest(p.x, p.z, 10) || this.npcs.nearestWalker(p.x, p.z, 10))) {
+      this.cheerAt = this.playTime;
+      window.setTimeout(() => {
+        if (!this.playerChar.isEmoting) return;
+        this.hud.notify('"Ehen! Oya dance! 🔥" People dey hail you.', 'good');
+        this.save.stats = applyEffects(this.save.stats, { clout: 1 });
+      }, 2500);
+    }
+  }
+
+  private stopEmote(): void {
+    this.emotes.close();
+    if (this.playerChar.pose !== 'normal') this.playerChar.pose = 'normal';
+  }
+
+  /** Someone close enough to give cash to (event NPC, crowd, or street walker). */
+  private findGiveTarget(x: number, z: number): Game['giveTarget'] {
+    const spot = NPC_SPOTS.find((s) => s.look !== 'none' && Math.hypot(s.x - x, s.z - z) < 2.6) ?? null;
+    if (spot) return { name: spot.name, person: null, spot, almajiri: false };
+    const person = this.crowds.nearest(x, z, 2.4) ?? this.npcs.nearestWalker(x, z, 2.4);
+    if (!person) return null;
+    const almajiri = person.char.cfg.outfit === 'jalabiya';
+    const names = ['Passer-by', 'Aunty', 'Oga', 'Bros', 'Mama', 'Young man', 'Sister'];
+    const name = almajiri ? 'Almajiri boy' : names[Math.abs(Math.round(person.x * 7 + person.z * 3)) % names.length];
+    return { name, person, spot: null, almajiri };
+  }
+
+  /** G: give cash to the person in front of you (or, as an almajiri, ask for sadaka). */
+  private giveCash(t: NonNullable<Game['giveTarget']>): void {
+    this.stopEmote();
+    t.person?.hold(8);
+    if (t.person) {
+      this.player.heading = Math.atan2(t.person.x - this.player.x, t.person.z - this.player.z);
+      this.player.sync();
+      t.person.char.root.rotation.y = Math.atan2(this.player.x - t.person.x, this.player.z - t.person.z);
+    }
+    this.beginDialogue(t.spot);
+    const money = this.save.stats.money;
+    const isAlmajiri = this.role?.id === 'almajiri';
+    const amounts = isAlmajiri ? [200] : [200, 1000, 5000];
+    const choices = amounts.map((a) => ({ text: `Give ${naira(a)}`, locked: money < a ? `Need ${naira(a)}` : undefined }));
+    if (isAlmajiri) choices.unshift({ text: 'Ask for sadaka 🥣', locked: undefined });
+    choices.push({ text: 'Abeg, another time', locked: undefined });
+    const line = t.almajiri ? '"Sadaka, don Allah! Allah ya saka da alheri." The boy hold out his bowl.' : `${t.name} look you. "Wetin dey happen, my person?"`;
+    this.dialogue.start({
+      title: isAlmajiri ? 'Sadaka' : 'Give cash',
+      speaker: t.name,
+      lines: [line],
+      choices,
+      onChoice: (i) => {
+        if (isAlmajiri && i === 0) {
+          const begged = this.flags.has('begged:' + this.day + ':' + Math.floor(this.hour));
+          const amt = begged ? 0 : [0, 100, 200, 500, 1000][Math.floor(Math.random() * 5)];
+          this.flags.add('begged:' + this.day + ':' + Math.floor(this.hour));
+          const text = amt ? `${t.name} drop ${naira(amt)} for your bowl. "Allah ya kiyaye."` : begged ? '"I just give you now now! Waka."' : `${t.name} shake head: "I no get change today."`;
+          return { text, tags: this.applyOutcome({ text, effects: { money: amt } }, `Sadaka from ${t.name}`) };
+        }
+        const amt = amounts[isAlmajiri ? i - 1 : i];
+        if (amt === undefined) return { text: `${t.name}: "No wahala. God bless you."`, tags: [] };
+        const big = amt >= 5000;
+        const text = t.almajiri
+          ? `The boy smile wide: "Na gode! Allah ya albarkace ka!" ${big ? 'Him friends come greet you too.' : ''}`
+          : big ? `${t.name} shout: "Ah! Odogwu! God go bless your hustle!" People turn look you.` : amt >= 1000 ? `${t.name}: "Thank you o! You too much."` : `${t.name}: "Ehn, thank you. E go help small."`;
+        const clout = (amt >= 5000 ? 3 : amt >= 1000 ? 1 : 0) + (t.almajiri ? 1 : 0);
+        return { text, tags: this.applyOutcome({ text, effects: { money: -amt, clout } }, `Cash gift to ${t.name}`) };
+      },
+      onClose: () => this.endDialogue(),
+    });
   }
 
   // ------------------------------------------------------------- vehicles
@@ -1156,13 +1475,15 @@ export class Game {
     if (spot) this.setFlag('met:' + spot.id);
     this.beginDialogue(spot);
     const ctx = this.eventCtx();
+    // Role-only choices are hidden from everybody else.
+    const shown = ev.choices.map((_, i) => i).filter((i) => !ev.choices[i].requires?.role || ev.choices[i].requires!.role!.includes(this.save.role ?? ''));
     this.dialogue.start({
       title: ev.title,
       speaker: ev.speaker,
       lines: linesFor(ev, this.save.character.background),
-      choices: ev.choices.map((c) => ({ text: c.text, locked: meets(c.requires, ctx) ? undefined : c.lockedHint ?? 'Locked' })),
-      onChoice: (i) => {
-        const out = this.events.resolve(ev, i, this.eventCtx());
+      choices: shown.map((i) => ev.choices[i]).map((c) => ({ text: c.text, locked: meets(c.requires, ctx) ? undefined : c.lockedHint ?? 'Locked' })),
+      onChoice: (k) => {
+        const out = this.events.resolve(ev, shown[k], this.eventCtx());
         if (!out) return { text: '…', tags: [] };
         return { text: out.text, tags: this.applyOutcome(out, ev.title) };
       },
@@ -1228,7 +1549,7 @@ export class Game {
     const inp = this.input;
     this.dialogue.update(dt);
     if (this.dialogue.choosing) {
-      (['choice1', 'choice2', 'choice3'] as const).forEach((a, i) => {
+      (['choice1', 'choice2', 'choice3', 'choice4'] as const).forEach((a, i) => {
         if (inp.wasPressed(a)) {
           this.audio.click();
           this.dialogue.choose(i);
