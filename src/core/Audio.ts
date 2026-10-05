@@ -96,6 +96,19 @@ export class Audio {
     this.tone(880, 0.25, 'sine', 0.08, 0.1);
   }
 
+  /** New text / email / credit alert: a bright phone "ding-ding-ding". */
+  notify(): void {
+    this.tone(1047, 0.12, 'sine', 0.16);
+    this.tone(1319, 0.12, 'sine', 0.15, 0.11);
+    this.tone(1568, 0.3, 'sine', 0.15, 0.22);
+    this.tone(2093, 0.25, 'triangle', 0.05, 0.22);
+    try {
+      navigator.vibrate?.([70, 50, 70]);
+    } catch {
+      /* not supported */
+    }
+  }
+
   bump(strength: number): void {
     this.tone(90, 0.18, 'square', Math.min(0.2, 0.04 + strength * 0.01), 0, -40);
   }

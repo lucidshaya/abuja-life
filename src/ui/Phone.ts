@@ -1,5 +1,5 @@
 import { BILLS, TRANSFER_FEE, unlockedContacts, type Contact, type Mail, type Msg, type PhoneState } from '../phone/PhoneData';
-import { formatClock } from '../world/DayNight';
+import { dayLabel, formatClock } from '../world/DayNight';
 import { $, h, naira, show } from './dom';
 
 export interface PhoneHost {
@@ -10,6 +10,9 @@ export interface PhoneHost {
   flags: () => ReadonlySet<string>;
   playerName: () => string;
   trackName: () => string;
+  nextTrack: () => void;
+  /** "⚡ 12 kWh left • Service charge: paid" */
+  homeStatus: () => string;
   muted: () => boolean;
   musicVolume: () => number;
   quality: () => string;
@@ -26,13 +29,14 @@ export interface PhoneHost {
   setMusicVolume: (v: number) => void;
   setQuality: (q: 'auto' | 'low' | 'medium' | 'high') => void;
   openMap: () => void;
+  openWardrobe: () => void;
   openTravel: () => void;
   openSettings: () => void;
   save: () => void;
   click: () => void;
 }
 
-type Screen = 'home' | 'bank' | 'transfer' | 'sendany' | 'request' | 'bills' | 'mail' | 'mailview' | 'messages' | 'thread' | 'contacts' | 'call' | 'music' | 'maps' | 'settings';
+type Screen = 'wardrobe' | 'home' | 'bank' | 'transfer' | 'sendany' | 'request' | 'bills' | 'mail' | 'mailview' | 'messages' | 'thread' | 'contacts' | 'call' | 'music' | 'maps' | 'settings';
 
 const WALLPAPERS = [
   'linear-gradient(160deg, #0f8a4b 0%, #08321d 60%, #041a0f 100%)',
@@ -48,6 +52,7 @@ const APPS: { id: Screen; name: string; color: string; glyph: string }[] = [
   { id: 'contacts', name: 'Contacts', color: '#f2a516', glyph: '☎' },
   { id: 'music', name: 'Music', color: '#e8364f', glyph: '♫' },
   { id: 'maps', name: 'Maps', color: '#0f8a4b', glyph: '⌖' },
+  { id: 'wardrobe', name: 'Wardrobe', color: '#d4a62a', glyph: '👕' },
   { id: 'settings', name: 'Settings', color: '#5b5f66', glyph: '⚙' },
 ];
 
@@ -167,12 +172,13 @@ export class Phone {
     const unread = this.unread();
     const unreadMail = this.unreadMail();
     b.append(
-      h('div.ph-clock', {}, h('div.ph-time', { text: formatClock(this.host.hour()) }), h('div.ph-date', { text: `Day ${this.host.day()} • Abuja, FCT` })),
+      h('div.ph-clock', {}, h('div.ph-time', { text: formatClock(this.host.hour()) }), h('div.ph-date', { text: `${dayLabel(this.host.day())} • Abuja, FCT` })),
       h('div.ph-grid', {}, ...APPS.map((a) =>
-        h('button.ph-app', { type: 'button', onclick: () => this.go(a.id) },
+        h('button.ph-app', { type: 'button', onclick: () => (a.id === 'wardrobe' ? (this.host.click(), this.close(), this.host.openWardrobe()) : this.go(a.id)) },
           h('span.ph-icon', { style: `background:${a.color}`, text: a.glyph }, a.id === 'messages' && unread ? h('span.ph-badge', { text: String(unread) }) : a.id === 'mail' && unreadMail ? h('span.ph-badge', { text: String(unreadMail) }) : null),
           h('span.ph-appname', { text: a.name }),
         ))),
+      h('div.ph-widget.home', {}, h('span', { text: '🏠 Home' }), h('b.small', { text: this.host.homeStatus() })),
       h('div.ph-widget', {}, h('span', { text: 'OPay balance' }), h('b', { text: this.host.state.hideBalance ? '₦ ••••••' : naira(this.host.money()) })),
     );
   }
@@ -199,7 +205,7 @@ export class Phone {
       st.txs.length
         ? h('div.bk-list', {}, ...st.txs.slice().reverse().slice(0, 40).map((t) =>
           h('div.bk-tx', {},
-            h('div', {}, h('div.bk-txl', { text: t.label }), h('div.bk-txd', { text: `Day ${t.day} • ${formatClock(t.hour)}` })),
+            h('div', {}, h('div.bk-txl', { text: t.label }), h('div.bk-txd', { text: `${dayLabel(t.day, true)} • ${formatClock(t.hour)}` })),
             h('div.bk-amt' + (t.amount >= 0 ? '.in' : '.out'), { text: (t.amount >= 0 ? '+' : '−') + naira(Math.abs(t.amount)) }),
           )))
         : h('div.ph-empty', { text: 'No transactions yet. Go and spend small money for Abuja!' }),
@@ -305,7 +311,7 @@ export class Phone {
       h('button.ms-row.ml-row' + (m.read ? '' : '.unread'), { type: 'button', onclick: () => { this.mailOpen = m; this.go('mailview'); } },
         h('span.ct-av', { style: `background:${colorFor(m.from)}`, text: initials(m.from) }),
         h('span.ms-mid', {}, h('span.ms-from', { text: m.from }), h('span.ml-subj', { text: m.subject }), h('span.ms-prev', { text: m.body.replace(/\n+/g, ' ') })),
-        h('span.ml-day', { text: `D${m.day}` }),
+        h('span.ml-day', { text: dayLabel(m.day, true).slice(0, 3) }),
       ))));
   }
 
@@ -317,13 +323,13 @@ export class Phone {
       h('div.ml-view', {},
         h('div.ml-vsubj', { text: m.subject }),
         h('div.ml-vfrom', {}, h('b', { text: m.from }), h('span', { text: ` → ${this.host.email()}` })),
-        h('div.bk-txd', { text: `Day ${m.day} • ${formatClock(m.hour)}` }),
+        h('div.bk-txd', { text: `${dayLabel(m.day, true)} • ${formatClock(m.hour)}` }),
         h('div.ml-vbody', {}, ...m.body.split('\n').map((l) => (l ? h('p', { text: l }) : h('br')))),
       ));
   }
 
   private renderBills(b: HTMLElement): void {
-    b.append(this.header('Airtime, Data & Bills', 'bank'), this.toastEl(), h('div.ct-list', {}, ...BILLS.map((bill) =>
+    b.append(this.header('Airtime, Data & Bills', 'bank'), h('div.bk-home', { text: this.host.homeStatus() }), this.toastEl(), h('div.ct-list', {}, ...BILLS.map((bill) =>
       h('button.ct-row.bill', {
         type: 'button',
         disabled: this.host.money() < bill.amount,
@@ -365,7 +371,7 @@ export class Phone {
     const from = this.thread ?? '';
     const msgs = this.host.state.messages.filter((m) => m.from === from);
     msgs.forEach((m) => (m.read = true));
-    const list = h('div.th-list', {}, ...msgs.map((m) => h('div.th-bubble', {}, h('div', { text: m.text }), h('div.th-time', { text: `Day ${m.day} • ${formatClock(m.hour)}` }))));
+    const list = h('div.th-list', {}, ...msgs.map((m) => h('div.th-bubble', {}, h('div', { text: m.text }), h('div.th-time', { text: `${dayLabel(m.day, true)} • ${formatClock(m.hour)}` }))));
     b.append(this.header(from, 'messages'), list);
     requestAnimationFrame(() => (list.scrollTop = list.scrollHeight));
   }
@@ -413,7 +419,10 @@ export class Phone {
         h('div.mu-art' + (playing ? '.spin' : ''), {}, h('span', { text: '♫' })),
         h('div.mu-title', { text: this.host.trackName() }),
         h('div.mu-sub', { text: 'Now playing in Abuja' }),
-        h('button.mu-play', { type: 'button', 'aria-label': playing ? 'Pause' : 'Play', onclick: () => { this.host.toggleMute(); this.render(); } }, playing ? '❚❚' : '▶'),
+        h('div.mu-ctrls', {},
+          h('button.mu-play', { type: 'button', 'aria-label': playing ? 'Pause' : 'Play', onclick: () => { this.host.toggleMute(); this.render(); } }, playing ? '❚❚' : '▶'),
+          h('button.mu-play.mu-next', { type: 'button', 'aria-label': 'Next song', onclick: () => { this.host.click(); this.host.nextTrack(); window.setTimeout(() => this.render(), 150); } }, '⏭'),
+        ),
         h('label.mu-vol', {}, h('span', { text: 'Volume' }), vol),
       ),
     );

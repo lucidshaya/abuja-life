@@ -179,6 +179,7 @@ export const RESERVED: Rect[] = [
   { x0: 294, z0: 66, x1: 364, z1: 114 }, // Silverbird Galleria, Central
   { x0: 8, z0: 256, x1: 114, z1: 364 }, // Wonderland, Garki
   { x0: -364, z0: 134, x1: -256, z1: 244 }, // Jabi Motor Park, Utako
+  { x0: -245, z0: -368, x1: -131, z1: -261 }, // Sunshine Court Estate (your house), Gwarinpa
 ];
 
 /** Areas kept free of scattered trees because a location is built there. */
@@ -199,6 +200,7 @@ export const NO_TREES: Rect[] = [
   { x0: -625, z0: 246, x1: -385, z1: 420 }, // National Stadium
   { x0: -915, z0: -100, x1: -640, z1: 300 }, // Airport terminal, apron, runway
   { x0: -915, z0: 300, x1: -862, z1: 415 }, // Runway (south end)
+  { x0: -245, z0: -368, x1: -131, z1: -249 }, // Sunshine Court Estate + driveway
 ];
 
 export const LANDMARKS = {
@@ -306,6 +308,12 @@ export const NPC_SPOTS: NpcSpot[] = [
   { id: 'ap-checkin', name: 'Air Naija Check-in', x: -765, z: 238.6, facing: 0, eventId: 'airport-checkin', look: 'airline' },
   { id: 'ap-customs', name: 'Customs Officer', x: -735, z: 238.6, facing: 0, eventId: 'airport-customs', look: 'customs' },
   { id: 'ap-relative', name: 'Cousin Ada (just landed)', x: -712, z: 241, facing: 0, eventId: 'airport-welcome', look: 'traveller' },
+  // ---- Sunshine Court Estate (your house) + the waza plug ----
+  { id: 'estate-gate', name: 'Estate Security (Baba Audu)', x: -194.2, z: -265.5, facing: Math.PI / 2, eventId: 'estate-gate', look: 'guard' },
+  { id: 'estate-manager', name: 'Estate Manager Mrs. Okon', x: -182.6, z: -270, facing: -Math.PI / 2, eventId: 'estate-office', look: 'aunty' },
+  { id: 'estate-door', name: 'Your front door', x: -207.6, z: -287, facing: Math.PI / 2, eventId: 'estate-home', look: 'none' },
+  { id: 'estate-meter', name: 'Prepaid meter (AEDC)', x: -207.6, z: -290.5, facing: Math.PI / 2, eventId: 'estate-meter', look: 'none' },
+  { id: 'waza-plug', name: 'Waza Plug (Banex)', x: -70, z: 90, facing: 0, eventId: 'waza-plug', look: 'phoneguy' },
 ];
 
 export const CAR_SPOTS: CarSpot[] = [
@@ -322,6 +330,7 @@ export const CAR_SPOTS: CarSpot[] = [
   { x: -760, z: 262, heading: Math.PI / 2, color: 0x1f3f7a, model: 'benz' }, // Airport forecourt
   { x: -470, z: 275, heading: Math.PI / 2, color: 0x1f8a4b, model: 'corolla' }, // National Stadium plaza
   { x: 395, z: 74, heading: Math.PI / 2, color: 0x111111, model: 'suv' }, // National Assembly (outside the gate)
+  { x: -204, z: -294.6, heading: 0, color: 0x2a64c9, model: 'corolla' }, // your compound, Sunshine Court Estate
 ];
 
 const MAJOR = 16;

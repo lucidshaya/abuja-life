@@ -9,6 +9,12 @@
 
 export type MusicMode = 'city' | 'club' | 'off';
 
+const PLAYLIST = [
+  { url: 'music/theme.mp3', name: 'How Far (feat. Ayjay Bobo)' },
+  { url: 'music/superwoman.mp3', name: 'Superwoman' },
+];
+
+
 // Note helpers (A minor / C major family).
 const NOTE: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
 const freq = (name: string, octave: number) => 440 * Math.pow(2, (NOTE[name] + (octave - 4) * 12 - 9) / 12);
@@ -66,6 +72,9 @@ export class Music {
   private file: Partial<Record<'city' | 'club', HTMLAudioElement>> = {};
   private fileNode: MediaElementAudioSourceNode[] = [];
   private probed = false;
+  /** Shipped songs that take turns as the city soundtrack. */
+  private playlist: { el: HTMLAudioElement; name: string }[] = [];
+  private trackIdx = 0;
   /** A track the player picked from their own device (plays in every mode). */
   private userTrack: HTMLAudioElement | null = null;
   private userNode: MediaElementAudioSourceNode | null = null;
@@ -73,6 +82,24 @@ export class Music {
 
   get hasThemeFile(): boolean {
     return !!this.file.city;
+  }
+
+  /** Name of the song playing now (null = built-in synth groove). */
+  get currentTrackName(): string | null {
+    if (this.userTrack) return this.userTrackName;
+    return this.playlist[this.trackIdx]?.name ?? null;
+  }
+
+  /** Skip to the next shipped song. */
+  next(): void {
+    if (this.playlist.length < 2 || this.userTrack) return;
+    const wasPlaying = this.playing;
+    this.playlist[this.trackIdx].el.pause();
+    this.trackIdx = (this.trackIdx + 1) % this.playlist.length;
+    const el = this.playlist[this.trackIdx].el;
+    el.currentTime = 0;
+    this.file.city = el;
+    if (wasPlaying && this.mode !== 'off' && (this.mode === 'city' || !this.file.club)) void el.play().catch(() => {});
   }
 
   attach(ctx: AudioContext, out: GainNode): void {
@@ -91,11 +118,41 @@ export class Music {
   private async probeFiles(): Promise<void> {
     if (this.probed || !this.ctx || !this.out) return;
     this.probed = true;
-    const candidates: Record<'city' | 'club', string[]> = {
-      city: ['music/theme.mp3', 'music/theme.m4a'],
+    const ok = async (u: string) => {
+      try {
+        const r = await fetch(u, { method: 'HEAD' });
+        return r.ok && !(r.headers.get('content-type') ?? '').includes('html');
+      } catch {
+        return false;
+      }
+    };
+    // City playlist: the songs take turns, one after the other.
+    for (const t of PLAYLIST) {
+      if (!(await ok(t.url))) continue;
+      try {
+        const el = new window.Audio(t.url);
+        el.crossOrigin = 'anonymous';
+        el.preload = this.playlist.length ? 'none' : 'auto';
+        const node = this.ctx.createMediaElementSource(el);
+        node.connect(this.out);
+        this.fileNode.push(node);
+        el.addEventListener('ended', () => {
+          this.next();
+          if (this.playlist.length === 1) {
+            el.currentTime = 0;
+            void el.play().catch(() => {});
+          }
+        });
+        this.playlist.push({ el, name: t.name });
+      } catch {
+        /* skip this one */
+      }
+    }
+    if (this.playlist.length) this.file.city = this.playlist[0].el;
+    const candidates: Record<'club', string[]> = {
       club: ['music/club.mp3', 'music/club.m4a'],
     };
-    for (const m of ['city', 'club'] as const) {
+    for (const m of ['club'] as const) {
       let url: string | null = null;
       for (const u of candidates[m]) {
         try {

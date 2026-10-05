@@ -1,5 +1,6 @@
 import type { Bindings } from './Input';
 import { defaultCharacter, upgradeCharacter, type CharacterConfig } from '../player/CharacterConfig';
+import { newHome, parseHome, type HomeState } from '../player/Home';
 import { newPhoneState, parsePhone, type PhoneState } from '../phone/PhoneData';
 
 export type QualitySetting = 'auto' | 'low' | 'medium' | 'high';
@@ -36,6 +37,10 @@ export interface SaveData {
   lastSalaryDay: number;
   /** Absolute game hour (day*24+hour) when the player last worked. */
   lastWorkAbs: number;
+  /** Your house: prepaid electricity and estate dues. */
+  home: HomeState;
+  /** Waza (vapes) in stock to sell. */
+  waza: number;
 }
 
 export const SAVE_KEY = 'abuja-life-save-v1';
@@ -58,6 +63,8 @@ export function newSave(character: CharacterConfig = defaultCharacter()): SaveDa
     role: null,
     lastSalaryDay: 1,
     lastWorkAbs: -100,
+    home: newHome(),
+    waza: 0,
   };
 }
 
@@ -101,6 +108,8 @@ export function parseSave(raw: string | null): SaveData | null {
     role: typeof o.role === 'string' ? o.role : null,
     lastSalaryDay: num(o.lastSalaryDay, 1),
     lastWorkAbs: num(o.lastWorkAbs, -100),
+    home: parseHome(o.home, Math.max(1, Math.floor(num(o.day, 1))) * 24 + num(o.hour, 9)),
+    waza: Math.max(0, Math.floor(num(o.waza, 0))),
     settings: {
       quality: (['auto', 'low', 'medium', 'high'] as const).includes(s.quality) ? s.quality : 'auto',
       sensitivity: Math.min(3, Math.max(0.2, num(s.sensitivity, 1))),

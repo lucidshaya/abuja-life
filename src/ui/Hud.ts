@@ -1,6 +1,6 @@
 import type { Action, Bindings, Device } from '../core/Input';
 import { keyLabel } from '../core/Input';
-import { formatClock } from '../world/DayNight';
+import { dayLabel, formatClock } from '../world/DayNight';
 import { $, h, naira, show } from './dom';
 
 const PAD_LABEL: Partial<Record<Action, string>> = { interact: 'X', vehicle: 'Y', jump: 'A', sprint: 'B', map: 'View', pause: 'Menu', horn: 'RB' };
@@ -17,6 +17,9 @@ export class Hud {
   private feed = h('div.feed');
   private hints = h('div.hints');
   private speedo = h('div.speedo.hidden');
+  private banner = h('button.push.hidden', { type: 'button' });
+  private bannerTimer = 0;
+  onBanner: () => void = () => {};
   readonly minimapCanvas = h('canvas.minimap') as HTMLCanvasElement;
   private toastTimer = 0;
   private lastMoney = NaN;
@@ -26,7 +29,13 @@ export class Hud {
 
   constructor() {
     const stats = h('div.stats', {}, this.role, h('div.bal-label', { text: 'OPay account balance' }), h('div.row', {}, this.money), h('div.row', {}, this.clout, this.clock), this.district);
-    this.root.append(stats, h('div.minimap-wrap', {}, this.minimapCanvas), this.toast, this.prompt, this.feed, this.hints, this.speedo);
+    this.root.append(stats, h('div.minimap-wrap', {}, this.minimapCanvas), this.toast, this.prompt, this.feed, this.hints, this.speedo, this.banner);
+    this.banner.addEventListener('click', (e) => {
+      e.stopPropagation();
+      show(this.banner, false);
+      this.onBanner();
+    });
+    this.banner.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
 
   setVisible(on: boolean): void {
@@ -52,7 +61,7 @@ export class Hud {
       this.lastClout = clout;
       this.clout.textContent = `★ ${clout} clout`;
     }
-    this.clock.textContent = `Day ${day} · ${formatClock(hour)}`;
+    this.clock.textContent = `${dayLabel(day, true)} · ${formatClock(hour)}`;
   }
 
   resetDeltas(): void {
@@ -90,6 +99,21 @@ export class Hud {
     if (this.device !== 'touch') this.prompt.append(h('kbd', { text: this.key(action) }));
     this.prompt.append(h('span', { text }));
     show(this.prompt, true);
+  }
+
+  /** Phone-style push notification that slides down from the top. */
+  push(app: string, color: string, glyph: string, title: string, text: string): void {
+    this.banner.innerHTML = '';
+    this.banner.append(
+      h('span.push-ic', { style: `background:${color}`, text: glyph }),
+      h('span.push-mid', {}, h('span.push-app', {}, h('b', { text: app }), h('span', { text: ' • now' })), h('span.push-title', { text: title }), h('span.push-text', { text })),
+    );
+    show(this.banner, true);
+    this.banner.classList.remove('in');
+    void this.banner.offsetWidth;
+    this.banner.classList.add('in');
+    clearTimeout(this.bannerTimer);
+    this.bannerTimer = window.setTimeout(() => show(this.banner, false), 4200);
   }
 
   notify(text: string, kind: 'good' | 'bad' | 'info' = 'info'): void {

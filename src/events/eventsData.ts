@@ -1,4 +1,5 @@
 import type { GameEvent } from './EventSystem';
+import { HOME_EVENTS } from './eventsHome';
 import { PLACE_EVENTS } from './eventsPlaces';
 
 /**
@@ -970,4 +971,4 @@ const BASE_EVENTS: GameEvent[] = [
 ];
 
 /** Base events plus the ten extra places (events/eventsPlaces.ts). */
-export const EVENTS: GameEvent[] = [...BASE_EVENTS, ...PLACE_EVENTS];
+export const EVENTS: GameEvent[] = [...BASE_EVENTS, ...PLACE_EVENTS, ...HOME_EVENTS];

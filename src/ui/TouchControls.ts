@@ -133,6 +133,10 @@ export class TouchControls {
     if (b) b.dataset.badge = n ? String(n) : '';
   }
 
+  setPhoneNudge(on: boolean): void {
+    this.btns.phone?.classList.toggle('nudge', on);
+  }
+
   setVisible(on: boolean): void {
     this.enabled = on;
     show(this.root, on);

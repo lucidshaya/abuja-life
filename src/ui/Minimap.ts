@@ -300,7 +300,8 @@ export class FullMap {
       ['Eagle Square', LANDMARKS.eagleSquare.x, LANDMARKS.eagleSquare.z],
       ['City Gate', LANDMARKS.cityGate.x, LANDMARKS.cityGate.z - 24],
       ['Area 1', LANDMARKS.area1.x, LANDMARKS.area1.z],
-      ['Your Flat', LANDMARKS.home.x, LANDMARKS.home.z - 16],
+      ['Wuse 2 Flat', LANDMARKS.home.x, LANDMARKS.home.z - 16],
+      ['Your House (Sunshine Court)', -188, -372],
       ['Jabi Lake Mall', LANDMARKS.jabiMall.x, LANDMARKS.jabiMall.z - 22],
       ['The Cage', 85, -100],
     ];

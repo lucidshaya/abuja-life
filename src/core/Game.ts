@@ -16,7 +16,7 @@ import { RolePicker } from '../ui/RolePicker';
 import { PlayerController } from '../player/PlayerController';
 import { Vehicle } from '../player/Vehicle';
 import { buildCity } from '../world/CityBuilder';
-import { DayNight } from '../world/DayNight';
+import { DayNight, dayLabel } from '../world/DayNight';
 import { buildLandmarks } from '../world/Landmarks';
 import { CAR_SPOTS, LANDMARKS, NPC_SPOTS, SPAWN, WORLD, districtAt, type NpcSpot } from '../world/MapData';
 import { updateGlowMaterials, worldUniforms } from '../world/Materials';
@@ -24,7 +24,7 @@ import { Npcs } from '../world/Npc';
 import { Traffic } from '../world/Traffic';
 import { Crowds } from '../world/Crowd';
 import { PORTALS, TRAVEL, interiorAt, type Interior, type Portal, type TravelSpot } from '../world/locations/Locations';
-import { QUICK_ZONES, quickZoneAt, type QuickItem, type QuickZone } from '../world/locations/QuickPlaces';
+import { QUICK_ZONES, quickZoneAt, standBy, type QuickItem, type QuickZone } from '../world/locations/QuickPlaces';
 import { QuickActions, type QuickEntry } from '../ui/QuickActions';
 import { EmoteMenu } from '../ui/EmoteMenu';
 import type { Person } from '../world/Npc';
@@ -33,6 +33,8 @@ import { buildNile } from '../world/locations/Nile';
 import { buildPark } from '../world/locations/Park';
 import { buildCage, buildGuzape } from '../world/locations/Small';
 import { ABUJA2_QUICK, buildAbuja2 } from '../world/locations/Abuja2';
+import { HOME_LIGHTS, buildEstate } from '../world/locations/Estate';
+import { ESTATE, ESTATE_DUES, TOKENS, inEstate, newHome, powerOut, unitsFor, useUnits, weekOf, weeksOwed } from '../player/Home';
 import { TravelMenu, type TravelChoice, type TravelMode } from '../ui/TravelMenu';
 import { Phone } from '../ui/Phone';
 import { BILLS, FLAG_TEXTS, TAXI_FARE, TRANSFER_FEE, groupText, morningText, requestReply, transferOp, uid, type Contact } from '../phone/PhoneData';
@@ -89,7 +91,21 @@ export class Game {
   private rolePicker!: RolePicker;
   private quick!: QuickActions;
   private quickActs: (() => void)[] = [];
-  private quickZones: QuickZone[] = [...QUICK_ZONES, ...ABUJA2_QUICK];
+  private quickZones: QuickZone[] = [
+    {
+      id: 'estate', name: ESTATE.name, rects: [ESTATE.rect],
+      items: [
+        standBy('estate-door', 'Your house (sleep, change clothes)', '🏠', 2.4),
+        standBy('estate-meter', 'Prepaid meter (NEPA units)', '⚡', 2.4),
+        standBy('estate-manager', 'Estate office (service charge)', '🧾'),
+        standBy('estate-gate', 'Gate security', '💂🏾'),
+        { label: 'Your car', icon: '🚗', x: -201.6, z: -294.6, heading: -Math.PI / 2 },
+      ],
+    },
+    ...QUICK_ZONES,
+    ...ABUJA2_QUICK.map((z) => (z.id === 'banex' ? { ...z, items: [...z.items, standBy('waza-plug', 'Waza plug (buy vapes)', '💨')] } : z)),
+  ];
+  private wasInEstate = false;
   private emotes!: EmoteMenu;
   private cheerAt = -999;
   private giveTarget: { name: string; person: Person | null; spot: NpcSpot | null; almajiri: boolean } | null = null;
@@ -153,7 +169,7 @@ export class Game {
     this.animators.push(...lm.animators);
     progress(0.55, 'Stocking ShopRite shelves and filling Millennium Park…');
     await nextFrame();
-    const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world), buildAbuja2(this.world)];
+    const locs = [buildMall(this.world), buildNile(this.world), buildPark(this.world), buildCage(this.world), buildGuzape(this.world), buildAbuja2(this.world), buildEstate(this.world)];
     for (const l of locs) {
       this.scene.add(l.group);
       this.animators.push(...l.animators);
@@ -208,6 +224,9 @@ export class Game {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const game = this;
     this.hud = new Hud();
+    this.hud.onBanner = () => {
+      if (this.state === 'play') this.openPhone();
+    };
     this.hud.bindings = this.input.bindings;
     this.hud.device = this.input.device;
     const img = new MapImage(buildings);
@@ -243,6 +262,7 @@ export class Game {
       else this.quick.press(i);
     });
     this.fullMap.places = TRAVEL.map((t) => ({ name: t.name, color: t.color, x: t.pin?.x ?? t.x, z: t.pin?.z ?? t.z, to: { x: t.x, z: t.z, heading: t.heading } }));
+    this.fullMap.places.unshift({ name: 'Your house (Sunshine Court Estate)', color: '#16b464', x: ESTATE.house.x, z: ESTATE.house.z, to: ESTATE.spawn });
     this.fullMap.places.unshift({ name: 'Abuja City Gate', color: '#0f7a45', x: LANDMARKS.cityGate.x, z: LANDMARKS.cityGate.z, to: SPAWN });
     this.fullMap.onTeleport = (place, x, z) => this.mapTeleport(place?.name ?? null, x, z, place?.to?.heading);
     this.touchUi = new TouchControls(this.input);
@@ -285,7 +305,9 @@ export class Game {
       day: () => this.day,
       flags: () => this.flags,
       playerName: () => this.save.character.name,
-      trackName: () => this.audio.music.userTrackName ?? (this.audio.music.hasThemeFile ? 'How Far (feat. Ayjay Bobo)' : 'Abuja Life Beats'),
+      trackName: () => this.audio.music.currentTrackName ?? 'Abuja Life Beats',
+      nextTrack: () => this.audio.music.next(),
+      homeStatus: () => this.homeStatus(),
       muted: () => this.save.settings.muted,
       musicVolume: () => this.save.settings.musicVolume,
       quality: () => this.save.settings.quality,
@@ -313,6 +335,8 @@ export class Game {
       payBill: (id) => {
         const bill = BILLS.find((x) => x.id === id);
         if (!bill) return 'Unknown bill';
+        if (bill.id === 'nepa' && this.save.stats.money >= bill.amount) this.loadUnits(unitsFor(bill.amount));
+        if (bill.id === 'estate' && this.save.stats.money >= bill.amount) this.save.home.duesWeek++;
         return this.bankOp({ label: bill.label, amount: -bill.amount, clout: bill.clout, reply: bill.reply, endsBlackout: bill.endsBlackout });
       },
       call: (c) => this.phoneCall(c),
@@ -327,6 +351,7 @@ export class Game {
         this.persist();
       },
       openMap: () => this.openMap(),
+      openWardrobe: () => this.openWardrobe(),
       openTravel: () => this.openTravel('pause'),
       openSettings: () => {
         this.state = 'paused';
@@ -436,14 +461,16 @@ export class Game {
     this.playerChar.build(cfg);
     this.leaveCar(true);
     this.resetCars();
-    this.player.teleport(SPAWN.x, SPAWN.z, SPAWN.heading);
-    this.rig.snapBehind(SPAWN.heading);
+    this.save.home = newHome(this.day * 24 + this.hour);
+    this.player.teleport(ESTATE.spawn.x, ESTATE.spawn.z, ESTATE.spawn.heading);
+    this.rig.snapBehind(ESTATE.spawn.heading);
     this.addTx('Opening balance', role.money);
     if (bonus.money) this.addTx(`Gift from home (${cfg.background})`, bonus.money);
     this.addMsg('OPay', `Welcome to OPay, ${cfg.name}! Your account is ready with ${naira(this.save.stats.money)}. Spend wisely for Abuja 😉`, false);
     this.addMsg('Mummy ❤️', 'My child, you don reach Abuja? Call me when you settle. Love you!', false);
     this.addMail('Abuja Life', `Welcome to Abuja, ${cfg.name}!`, `Your email address is ${playerEmail(cfg.name, role)}.\n\nYou are now a ${role.name}. ${role.blurb}\n\n${role.salary ? `Your pay of ${naira(role.salary)} lands in your OPay account every morning at 8am.` : 'You earn money by working — go to ' + role.workplace.name + ' and open the quick actions.'}\n\nPerk: ${role.perk}`, false);
     this.addMail(role.workplace.name, role.email.welcome.subject, role.email.welcome.body, false);
+    this.addMail('Sunshine Court Estate', 'Welcome to your new house!', `Dear ${cfg.name},\n\nWelcome to ${ESTATE.name}, ${ESTATE.area}. Your house is the first one on the left after the gate.\n\n• Electricity is prepaid. Your meter has 20 units (about 3 days). Buy AEDC tokens at the meter or in OPay → Bills, or light go off.\n• Service charge is ${naira(ESTATE_DUES)} every week (Monday). Your first week is paid.\n\n— Mrs. Okon, Estate Manager`, false);
     this.persist();
     this.openTravel('start');
   }
@@ -463,7 +490,7 @@ export class Game {
     this.save.stats = applyEffects(this.save.stats, { money: amount });
     this.addTx(`Salary — ${role.salaryFrom}`, amount);
     this.addMsg('OPay', `Credit alert! +${naira(amount)} from ${role.salaryFrom}. Balance: ${naira(this.save.stats.money)}`);
-    this.addMail(role.salaryFrom, `Payslip — Day ${this.day}`, `Dear ${this.save.character.name},\n\n${naira(amount)} has been paid into your OPay account${days > 1 ? ` for ${days} days` : ''}.\n\nRole: ${role.name}\nWorkplace: ${role.workplace.name}`, false);
+    this.addMail(role.salaryFrom, `Payslip — ${dayLabel(this.day)}`, `Dear ${this.save.character.name},\n\n${naira(amount)} has been paid into your OPay account${days > 1 ? ` for ${days} days` : ''}.\n\nRole: ${role.name}\nWorkplace: ${role.workplace.name}`, false);
     this.audio.coin();
   }
 
@@ -513,14 +540,18 @@ export class Game {
     this.player.vx = this.player.vz = 0;
     this.phone.show(screen ?? 'home');
     this.audio.click();
+    this.flags.add('openedPhone');
+    this.syncPhoneBadge();
   }
 
   addMsg(from: string, text: string, notify = true): void {
     this.save.phone.messages.push({ id: uid('m'), from, text, day: this.day, hour: this.hour, read: false });
     if (this.save.phone.messages.length > 150) this.save.phone.messages.splice(0, this.save.phone.messages.length - 150);
     if (notify && (this.state === 'play' || this.state === 'phone')) {
-      this.hud.notify(`📩 ${from}: ${text.length > 46 ? text.slice(0, 44) + '…' : text}`, 'info');
-      this.audio.chime();
+      const bank = from === 'OPay';
+      this.hud.push(bank ? 'OPay' : 'Messages', bank ? '#16b464' : '#2a9df4', bank ? '₦' : '💬', from, text.length > 90 ? text.slice(0, 88) + '…' : text);
+      this.audio.notify();
+      this.pingPhone();
     }
     this.syncPhoneBadge();
     this.phone?.refresh();
@@ -530,8 +561,9 @@ export class Game {
     this.save.phone.mail.push({ id: uid('e'), from, subject, body, day: this.day, hour: this.hour, read: false });
     if (this.save.phone.mail.length > 80) this.save.phone.mail.splice(0, this.save.phone.mail.length - 80);
     if (notify && (this.state === 'play' || this.state === 'phone')) {
-      this.hud.notify(`✉️ ${from}: ${subject}`, 'info');
-      this.audio.chime();
+      this.hud.push('Mail', '#d93b30', '✉', from, subject);
+      this.audio.notify();
+      this.pingPhone();
     }
     this.syncPhoneBadge();
     this.phone?.refresh();
@@ -555,6 +587,21 @@ export class Game {
     const n = this.save.phone.messages.filter((m) => !m.read).length + this.save.phone.mail.filter((m) => !m.read).length;
     this.phoneBtn.dataset.badge = n ? String(n) : '';
     this.touchUi?.setPhoneBadge(n);
+    // Bounce now and then while there's something unread (or until a new player opens the phone once).
+    const nudge = n > 0 || !this.flags.has('openedPhone');
+    this.phoneBtn.classList.toggle('nudge', nudge);
+    this.touchUi?.setPhoneNudge(nudge);
+  }
+
+  /** A new notification: the phone button rings for a moment. */
+  private pingPhone(): void {
+    for (const el of [this.phoneBtn, document.querySelector<HTMLElement>('.tbtn.phone')]) {
+      if (!el) continue;
+      el.classList.remove('ring');
+      void el.offsetWidth;
+      el.classList.add('ring');
+      window.setTimeout(() => el.classList.remove('ring'), 1600);
+    }
   }
 
   /** Money movement from the phone (transfers, airtime, bills). Returns an error message or null. */
@@ -591,6 +638,7 @@ export class Game {
   /** Per-frame: morning texts from Mummy, group chat banter. */
   private phoneTick(): void {
     this.payday();
+    this.billsTick();
     const ph = this.save.phone;
     if (this.day > ph.lastMorningDay && this.hour >= 7.5 && this.hour < 12) {
       ph.lastMorningDay = this.day;
@@ -629,7 +677,13 @@ export class Game {
       id: 'work', name: 'Your workplace', area: r.workplace.name, featured: false, color: r.color,
       desc: `Go to work as ${r.name}: ${r.work.label.toLowerCase()}.`, x: r.workplace.x, z: r.workplace.z, heading: r.workplace.heading,
     } : undefined;
-    this.travel.show(mode, (c) => this.travelTo(c, mode), back, mode === 'continue' ? { x: p.x, z: p.z } : undefined, work);
+    const home: TravelSpot = {
+      id: 'home', name: 'Your house', area: `${ESTATE.name}, ${ESTATE.area}`, featured: false, color: '#16b464',
+      desc: 'Your house in the estate: sleep, change clothes, buy NEPA units and pay service charge.', x: ESTATE.spawn.x, z: ESTATE.spawn.z, heading: ESTATE.spawn.heading,
+    };
+    const extras = [{ spot: home, badge: 'HOME' }];
+    if (work) extras.push({ spot: work, badge: 'WORK' });
+    this.travel.show(mode, (c) => this.travelTo(c, mode), back, mode === 'continue' ? { x: p.x, z: p.z } : undefined, extras);
   }
 
   /** Bird's-eye view: lift the fog so the whole city is visible from above. */
@@ -696,6 +750,7 @@ export class Game {
     this.fadeTeleport(spot.x, spot.z, spot.heading, () => {
       this.startPlay();
       if (c === 'gate') this.hud.showToast('WELCOME TO ABUJA', `Oya ${name}, talk to Uncle Emeka (!) beside you`);
+      else if ((c as TravelSpot).id === 'home') this.hud.showToast('WELCOME HOME', `${ESTATE.name} • Check your meter units ⚡`);
       else this.hud.showToast((c as TravelSpot).name.toUpperCase(), (c as TravelSpot).desc);
       if (mode === 'taxi') this.hud.notify('Danladi: "We don reach! Abeg rate me 5 stars."', 'good');
       if (mode === 'start' && c !== 'gate') this.hud.notify('Tip: open your phone (Q) or the map (M) to travel again.', 'info');
@@ -768,8 +823,14 @@ export class Game {
         this.save.lastSalaryDay = this.day;
         this.flags.add('role:' + role.id);
         this.addMail('Abuja Life', `You are now a ${role.name}`, `${role.blurb}\n\nYour email: ${playerEmail(this.save.character.name, role)}\nWorkplace: ${role.workplace.name}\nPerk: ${role.perk}`, false);
-        this.persist();
-        this.openTravel('continue');
+        // Then dress up for the new life.
+        this.customizer.open(upgradeCharacter({ ...this.save.character, ...role.look, name: this.save.character.name }), 'new', (cfg) => {
+          this.customizer.close();
+          this.save.character = cfg;
+          this.playerChar.build(cfg);
+          this.persist();
+          this.openTravel('continue');
+        });
       });
       return;
     }
@@ -778,8 +839,7 @@ export class Game {
 
   private startPlay(): void {
     this.state = 'play';
-    const role = this.role;
-    this.hud.setRole(role ? `${this.save.character.name} · ${role.name}` : this.save.character.name, role?.color);
+    this.refreshRoleLabel();
     this.syncPhoneBadge();
     this.hud.setVisible(true);
     this.hud.resetDeltas();
@@ -1002,6 +1062,10 @@ export class Game {
       this.dayNight.indoor = inside?.light ?? null;
       this.audio.music.setMode(this.save.settings.muted && this.audio.music.mode === 'off' ? 'off' : inside?.music ?? 'city');
     }
+    // No units on the meter: light don go for your estate.
+    const out = powerOut(this.save.home);
+    if (HOME_LIGHTS.mat) HOME_LIGHTS.mat.userData.glowStrength = out ? 0 : 1.5;
+    if (out && !this.indoor && inEstate(p.x, p.z, 30)) this.blackout = Math.max(this.blackout, 0.5);
     if (this.blackout > 0) this.blackout -= dt;
     const bo = worldUniforms.uBlackout.value;
     worldUniforms.uBlackout.value = bo + ((this.blackout > 0 ? 1 : 0) - bo) * Math.min(1, dt * 4);
@@ -1157,7 +1221,7 @@ export class Game {
       if (car && inp.wasPressed('vehicle')) this.enterCar(car);
       if (moving && this.playerChar.pose !== 'normal') this.stopEmote();
       this.giveTarget = this.findGiveTarget(this.player.x, this.player.z);
-      if (this.giveTarget && !prompt) prompt = { action: 'give', text: this.role?.id === 'almajiri' ? `Ask ${this.giveTarget.name} for sadaka` : `Give ${this.giveTarget.name} cash`, touch: 'Give' };
+      if (this.giveTarget && !prompt) prompt = { action: 'give', text: this.role?.id === 'almajiri' ? `Ask ${this.giveTarget.name} for sadaka` : this.save.waza > 0 ? `Sell waza / give cash to ${this.giveTarget.name}` : `Give ${this.giveTarget.name} cash`, touch: this.save.waza > 0 ? 'Sell' : 'Give' };
       if (this.giveTarget && inp.wasPressed('give')) {
         this.giveCash(this.giveTarget);
         return;
@@ -1184,6 +1248,8 @@ export class Game {
         return;
       }
     }
+
+    if (this.estateGateCheck(p.x, p.z)) return;
 
     // Districts & zone events.
     const d = districtAt(p.x, p.z);
@@ -1239,7 +1305,7 @@ export class Game {
   private markers(): MapMarker[] {
     const m = npcMarkers((id) => this.events.cooldownLeft(id, this.playTime) <= 0);
     for (const c of this.cars) if (c !== this.car) m.push({ x: c.x, z: c.z, color: '#5aa9ff' });
-    m.push({ x: LANDMARKS.home.x, z: LANDMARKS.home.z, color: '#7cf29a', label: 'H' });
+    m.push({ x: ESTATE.house.x, z: ESTATE.house.z, color: '#7cf29a', label: 'H' });
     return m;
   }
 
@@ -1355,6 +1421,8 @@ export class Game {
     const amounts = isAlmajiri ? [200] : [200, 1000, 5000];
     const choices = amounts.map((a) => ({ text: `Give ${naira(a)}`, locked: money < a ? `Need ${naira(a)}` : undefined }));
     if (isAlmajiri) choices.unshift({ text: 'Ask for sadaka 🥣', locked: undefined });
+    const wazaIdx = this.save.waza > 0 ? choices.length : -1;
+    if (wazaIdx >= 0) choices.push({ text: `Sell waza 💨 (${this.save.waza} left)`, locked: undefined });
     choices.push({ text: 'Abeg, another time', locked: undefined });
     const line = t.almajiri ? '"Sadaka, don Allah! Allah ya saka da alheri." The boy hold out his bowl.' : `${t.name} look you. "Wetin dey happen, my person?"`;
     this.dialogue.start({
@@ -1363,6 +1431,7 @@ export class Game {
       lines: [line],
       choices,
       onChoice: (i) => {
+        if (i === wazaIdx) return this.sellWaza(t);
         if (isAlmajiri && i === 0) {
           const begged = this.flags.has('begged:' + this.day + ':' + Math.floor(this.hour));
           const amt = begged ? 0 : [0, 100, 200, 500, 1000][Math.floor(Math.random() * 5)];
@@ -1370,7 +1439,7 @@ export class Game {
           const text = amt ? `${t.name} drop ${naira(amt)} for your bowl. "Allah ya kiyaye."` : begged ? '"I just give you now now! Waka."' : `${t.name} shake head: "I no get change today."`;
           return { text, tags: this.applyOutcome({ text, effects: { money: amt } }, `Sadaka from ${t.name}`) };
         }
-        const amt = amounts[isAlmajiri ? i - 1 : i];
+        const amt = i > wazaIdx && wazaIdx >= 0 ? undefined : amounts[isAlmajiri ? i - 1 : i];
         if (amt === undefined) return { text: `${t.name}: "No wahala. God bless you."`, tags: [] };
         const big = amt >= 5000;
         const text = t.almajiri
@@ -1381,6 +1450,174 @@ export class Game {
       },
       onClose: () => this.endDialogue(),
     });
+  }
+
+
+  // ------------------------------------------------------- home & hustle
+  private homeStatus(): string {
+    const h = this.save.home;
+    const owed = weeksOwed(h, this.day);
+    const units = h.units <= 0 ? '⚡ NO LIGHT (0 units)' : `⚡ ${h.units.toFixed(1)} kWh (~${Math.max(1, Math.round(h.units / 6))} day${h.units >= 9 ? 's' : ''})`;
+    return `${units} • Service charge: ${owed ? `owing ${naira(owed * ESTATE_DUES)}` : 'paid'}`;
+  }
+
+  private loadUnits(units: number): void {
+    const h = this.save.home;
+    const wasOut = powerOut(h);
+    h.units += units;
+    h.warnedLow = false;
+    h.warnedOut = false;
+    if (wasOut) this.blackout = 0;
+  }
+
+  /** Meter runs down over time; estate dues come every Monday. */
+  private billsTick(): void {
+    const h = this.save.home;
+    const abs = this.day * 24 + this.hour;
+    Object.assign(h, useUnits(h, abs));
+    if (h.units > 0 && h.units < 5 && !h.warnedLow) {
+      h.warnedLow = true;
+      this.addMsg('AEDC', `Low units! Your meter get ${h.units.toFixed(1)} kWh left. Buy token before light go off.`);
+    }
+    if (h.units <= 0 && !h.warnedOut) {
+      h.warnedOut = true;
+      this.addMsg('Neighbour (No. 2)', 'Your light don go o! Na only your house dark for the estate 😂 Buy NEPA card abeg.');
+    }
+    const week = weekOf(this.day);
+    const owed = weeksOwed(h, this.day);
+    if (owed > 0 && this.hour >= 8 && !this.flags.has('duesNotice:' + week)) {
+      this.flags.add('duesNotice:' + week);
+      this.addMail('Sunshine Court Estate', owed > 1 ? 'FINAL NOTICE: service charge' : 'Service charge due', `Dear resident,\n\nYou owe ${naira(owed * ESTATE_DUES)} (${owed} week${owed > 1 ? 's' : ''}) for security, waste and street lights.\n\n${owed > 1 ? 'Security will not open the gate for defaulters.' : 'Kindly pay at the estate office or in OPay → Bills.'}\n\n— Mrs. Okon, Estate Manager`);
+    }
+  }
+
+  private customDialogue(spot: NpcSpot | null, title: string, speaker: string, lines: string[], choices: { text: string; locked?: string; run: () => { text: string; tags?: { text: string; kind: 'good' | 'bad' | 'info' }[] } }[]): void {
+    this.beginDialogue(spot);
+    this.dialogue.start({
+      title, speaker, lines,
+      choices: choices.map((c) => ({ text: c.text, locked: c.locked })),
+      onChoice: (i) => {
+        const r = choices[i].run();
+        return { text: r.text, tags: r.tags ?? [] };
+      },
+      onClose: () => this.endDialogue(),
+    });
+  }
+
+  private homeDoor(spot: NpcSpot): void {
+    const out = powerOut(this.save.home);
+    const almajiri = this.role?.id === 'almajiri';
+    this.customDialogue(spot, almajiri ? "Boys' Quarters" : 'Home Sweet Home', 'Your house', [
+      out ? 'You open the door. Everywhere dark and hot. NEPA units don finish!' : almajiri ? 'Mallam arrange small room for you for the boys\' quarters. E clean.' : 'You open the door. Fan dey blow, fridge dey hum. Home sweet home.',
+    ], [
+      { text: 'Sleep till morning', run: () => ({ text: out ? 'Heat and mosquito no let you rest. You wake up tired.' : 'You sleep like baby. Morning don come.', tags: this.applyOutcome({ text: '', effects: { sleep: true, clout: out ? -1 : 0 } }) }) },
+      { text: 'Change clothes', run: () => ({ text: 'You open your wardrobe…', tags: this.applyOutcome({ text: '', effects: { customize: true } }) }) },
+      { text: 'Rest small (2 hours)', run: () => ({ text: out ? 'You fan yourself with newspaper for two hours.' : 'You watch Nollywood for two hours. Refreshed.', tags: this.applyOutcome({ text: '', effects: { timeSkip: 2 } }) }) },
+      { text: 'Go back outside', run: () => ({ text: 'You lock the door and waka.' }) },
+    ]);
+  }
+
+  private meter(spot: NpcSpot): void {
+    const h = this.save.home;
+    const money = this.save.stats.money;
+    this.customDialogue(spot, 'AEDC Prepaid Meter', 'Meter', [
+      h.units <= 0 ? 'The meter dey beep: 0.0 kWh. Light don go!' : `The meter show ${h.units.toFixed(1)} kWh — about ${Math.max(1, Math.round(h.units / 6))} day(s) of light.`,
+    ], [
+      ...TOKENS.map((t) => ({
+        text: `Buy ${naira(t)} token (${unitsFor(t)} kWh)`,
+        locked: money < t ? `Need ${naira(t)}` : undefined,
+        run: () => {
+          this.loadUnits(unitsFor(t));
+          return { text: `You load the 20-digit token. Beep! +${unitsFor(t)} kWh. ${h.units - unitsFor(t) <= 0 ? 'UP NEPA! Light don come back! 💡' : 'Light dey steady.'}`, tags: this.applyOutcome({ text: '', effects: { money: -t } }, 'AEDC prepaid token') };
+        },
+      })),
+      { text: 'Leave am', run: () => ({ text: 'You go buy later. Hopefully.' }) },
+    ]);
+  }
+
+  private estateOffice(spot: NpcSpot): void {
+    const h = this.save.home;
+    const owed = weeksOwed(h, this.day);
+    const money = this.save.stats.money;
+    const all = owed * ESTATE_DUES;
+    this.customDialogue(spot, 'Estate Office', 'Estate Manager Mrs. Okon', [
+      owed ? `You dey owe ${naira(all)} service charge (${owed} week${owed > 1 ? 's' : ''}). Security, waste and street light no dey free o.` : 'Your service charge dey up to date. Thank you jare!',
+    ], [
+      owed
+        ? { text: `Pay all (${naira(all)})`, locked: money < all ? `Need ${naira(all)}` : undefined, run: () => { h.duesWeek += owed; return { text: '"Thank you! I go tell security say you be correct resident."', tags: this.applyOutcome({ text: '', effects: { money: -all, clout: 1 } }, 'Estate service charge') }; } }
+        : { text: `Pay next week in advance (${naira(ESTATE_DUES)})`, locked: money < ESTATE_DUES ? `Need ${naira(ESTATE_DUES)}` : undefined, run: () => { h.duesWeek += 1; return { text: '"Ah! Model resident. If everybody be like you…"', tags: this.applyOutcome({ text: '', effects: { money: -ESTATE_DUES, clout: 2 } }, 'Estate service charge') }; } },
+      { text: 'Complain about the water tanker', run: () => ({ text: '"We don call them. Dem talk say na tomorrow." (Na the same thing dem talk last week.)' }) },
+      { text: 'Bye ma', run: () => ({ text: '"Take care. Remember: Monday na service charge day."' }) },
+    ]);
+  }
+
+  /** Security stops residents who owe 2+ weeks of service charge. */
+  private estateGateCheck(x: number, z: number): boolean {
+    const inside = inEstate(x, z, -2);
+    const entered = inside && !this.wasInEstate;
+    this.wasInEstate = inside;
+    if (!entered || this.fading) return false;
+    const owed = weeksOwed(this.save.home, this.day);
+    if (owed < 2) return false;
+    const spot = NPC_SPOTS.find((n) => n.id === 'estate-gate') ?? null;
+    const all = owed * ESTATE_DUES;
+    const turnBack = () => this.teleport(ESTATE.gate.x, ESTATE.rect.z1 + 9, 0);
+    this.customDialogue(spot, 'Gate Locked', 'Estate Security (Baba Audu)', [`Oga, sorry o. Madam Okon say make I no open for anybody wey owe service charge. You owe ${naira(all)}.`], [
+      { text: `Pay now with OPay (${naira(all)})`, locked: this.save.stats.money < all ? `Need ${naira(all)}` : undefined, run: () => { this.save.home.duesWeek += owed; return { text: '"Payment don enter! Welcome back sir/ma." He open the gate.', tags: this.applyOutcome({ text: '', effects: { money: -all } }, 'Estate service charge') }; } },
+      { text: 'Turn back', run: () => { this.pendingAfterDialogue = turnBack; return { text: 'You turn back. Your neighbours dey look you from window.' }; } },
+    ]);
+    return true;
+  }
+
+  private wazaPlug(spot: NpcSpot): void {
+    const money = this.save.stats.money;
+    const buy = (n: number, price: number) => ({
+      text: `Buy ${n} waza (${naira(price)})`,
+      locked: money < price ? `Need ${naira(price)}` : undefined,
+      run: () => {
+        this.save.waza += n;
+        this.refreshRoleLabel();
+        return { text: `He pack ${n} waza for nylon: mint, grape, watermelon. "Sell am ₦5k each, you go gain!" You now get ${this.save.waza}.`, tags: this.applyOutcome({ text: '', effects: { money: -price } }, `Waza stock x${n}`) };
+      },
+    });
+    this.customDialogue(spot, 'Waza Plug', spot.name, [
+      'My guy! Waza dey — original, no be fake. Abuja big boys and babes dey buy am like pure water.',
+      `Retail na ₦5,000 each. You get ${this.save.waza} for hand. Sell am for Farm City, The Cage, Nile, anywhere wey people dey (G).`,
+    ], [buy(5, 15000), buy(20, 50000), { text: 'I no dey do this one', run: () => ({ text: '"No wahala. When you ready, you know where to find me."' }) }]);
+  }
+
+  /** G near someone with waza in stock: try to sell one. */
+  private sellWaza(t: NonNullable<Game['giveTarget']>): { text: string; tags: { text: string; kind: 'good' | 'bad' | 'info' }[] } {
+    const zone = quickZoneAt(this.quickZones, this.player.x, this.player.z)?.id ?? '';
+    if (t.almajiri) return { text: '"Haba! Na small pikin you wan sell waza give?" People dey look you anyhow.', tags: this.applyOutcome({ text: '', effects: { clout: -2 } }) };
+    const key = `waza:${Math.round(t.person?.x ?? 0)}:${Math.round(t.person?.z ?? 0)}:${this.day}`;
+    if (this.flags.has(key)) return { text: `${t.name}: "I don buy from you already now!"`, tags: [] };
+    this.flags.add(key);
+    const night = this.hour >= 19 || this.hour < 4;
+    const hot = ['cage', 'cage-out', 'farmcity', 'nile', 'banex', 'mall-in', 'mall-out'].includes(zone);
+    const chance = 0.45 + (night ? 0.15 : 0) + (hot ? 0.2 : 0);
+    const r = Math.random();
+    if (r < 0.06) {
+      const lost = Math.min(this.save.waza, 2);
+      this.save.waza -= lost;
+      this.refreshRoleLabel();
+      return { text: `Na undercover task force! "Wetin be this?" Dem seize ${lost} waza. You escape with warning.`, tags: this.applyOutcome({ text: '', effects: { clout: -3 } }) };
+    }
+    if (r < chance) {
+      const price = (hot ? 6000 : 4500) + Math.round(Math.random() * 4) * 500;
+      this.save.waza -= 1;
+      this.refreshRoleLabel();
+      const lines = [`${t.name}: "Watermelon flavour? Oya!" Transfer don land.`, `${t.name}: "Bro, you be life saver. Mine just finish."`, `${t.name} pay sharp sharp: "Next time bring mint."`];
+      return { text: `${lines[Math.floor(Math.random() * lines.length)]} You get ${this.save.waza} left.`, tags: this.applyOutcome({ text: '', effects: { money: price } }, 'Waza sale') };
+    }
+    const no = [`${t.name}: "I no dey smoke abeg. My lungs na my property."`, `${t.name}: "₦5k? For ordinary vape? Abeg comot."`, `${t.name}: "My mama dey watch me from that window o!"`];
+    return { text: no[Math.floor(Math.random() * no.length)], tags: [] };
+  }
+
+  private refreshRoleLabel(): void {
+    const role = this.role;
+    const w = this.save.waza > 0 ? ` · 💨 ${this.save.waza}` : '';
+    this.hud.setRole(`${this.save.character.name}${role ? ' · ' + role.name : ''}${w}`, role?.color);
   }
 
   // ------------------------------------------------------------- vehicles
@@ -1440,6 +1677,10 @@ export class Game {
 
   // --------------------------------------------------------------- events
   private talkTo(spot: NpcSpot): void {
+    if (spot.id === 'estate-door') return this.homeDoor(spot);
+    if (spot.id === 'estate-meter') return this.meter(spot);
+    if (spot.id === 'estate-manager') return this.estateOffice(spot);
+    if (spot.id === 'waza-plug') return this.wazaPlug(spot);
     const ev = this.events.get(spot.eventId);
     if (!ev) return;
     const ready = this.events.forNpc(spot.eventId, this.eventCtx(), this.playTime);

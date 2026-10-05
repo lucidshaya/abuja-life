@@ -69,6 +69,7 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   const ncards = await page.locator('.tcard').count();
   check('desktop: travel menu lists places + start + workplace', ncards >= 10, String(ncards));
   check('travel: workplace pin for your role', await page.isVisible('.tcard:has-text("Your workplace")'));
+  check('travel: your house pin', await page.isVisible('.tcard:has-text("Your house")'));
   await sleep(1500);
   const pinsVisible = await page.locator('.tv-pin').evaluateAll((els) => els.filter((e) => e.style.visibility !== 'hidden').length);
   check('travel: bird\'s-eye map shows place pins', pinsVisible >= 8, `${pinsVisible} pins on screen`);
@@ -84,6 +85,8 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   const roleInfo = await G(page, () => ({ role: window.__abuja.save.role, money: window.__abuja.save.stats.money, mail: window.__abuja.save.phone.mail.length }));
   check('roles: student role saved with its money', roleInfo.role === 'student' && roleInfo.money === 15000 + 5000, JSON.stringify(roleInfo));
   check('roles: HUD shows the role', ((await page.textContent('.role-label')) ?? '').includes('Student'));
+  check('hud: weekday instead of Day 1', ((await page.textContent('.clock')) ?? '').startsWith('Mon'), (await page.textContent('.clock')) ?? '');
+  check('phone: button bounces for new players', await G(page, () => document.getElementById('phonebtn').classList.contains('nudge')));
   check('hud: balance labelled OPay account balance', ((await page.textContent('.bal-label')) ?? '').includes('OPay account balance'));
   await page.screenshot({ path: `${OUT}/03-spawn-zuma.png` });
   // Walk forward with W + sprint.
@@ -351,6 +354,42 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await sleep(1500);
   const mp = await pos(page);
   check('map: clicking a place teleports there', Math.hypot(mp.x - 250, mp.z + 142) < 4 && mp.state === 'play', JSON.stringify(mp));
+  // ---- Estate: your house, meter, service charge ----
+  await G(page, () => window.__abuja.teleport(-204.5, -287, -Math.PI / 2));
+  await sleep(1200);
+  check('estate: quick panel lists your house', await page.isVisible('#quick .qa-item:has-text("Prepaid meter")'));
+  await page.screenshot({ path: `${OUT}/37-estate-home.png` });
+  await G(page, () => { const g = window.__abuja; g.hour = 21; g.save.home.units = 0; g.save.home.lastAbs = g.day * 24 + g.hour; });
+  await sleep(1500);
+  check('estate: light goes out with 0 units', await G(page, () => window.__abuja.blackout > 0));
+  await page.screenshot({ path: `${OUT}/38-estate-no-light.png` });
+  check('notify: banner pops up for a new text', await G(page, async () => { window.__abuja.addMsg('Test', 'hello'); await new Promise((r) => setTimeout(r, 300)); return !document.querySelector('.push').classList.contains('hidden'); }));
+  await G(page, () => window.__abuja.teleport(-205.2, -290.5, -Math.PI / 2));
+  await sleep(500);
+  const mb = await G(page, () => window.__abuja.save.stats.money);
+  await pressUntil(page, 'KeyE', () => page.isVisible('#dialogue'), 3);
+  await pressUntil(page, 'KeyE', () => page.isVisible('.d-choice'), 6);
+  await page.keyboard.press('Digit2');
+  await sleep(600);
+  const meterAfter = await G(page, () => ({ units: window.__abuja.save.home.units, money: window.__abuja.save.stats.money }));
+  check('estate: buying a ₦5,000 token loads 25 units', meterAfter.units >= 24.9 && mb - meterAfter.money === 5000, JSON.stringify(meterAfter));
+  await pressUntil(page, 'KeyE', async () => !(await page.isVisible('#dialogue')), 8);
+  // ---- Waza: buy from the plug at Banex, sell to people ----
+  await G(page, () => { const g = window.__abuja; g.hour = 20; g.save.stats.money += 20000; g.teleport(-70, 91.8, Math.PI); });
+  await sleep(800);
+  await pressUntil(page, 'KeyE', () => page.isVisible('#dialogue'), 3);
+  await pressUntil(page, 'KeyE', () => page.isVisible('.d-choice'), 6);
+  await page.keyboard.press('Digit1');
+  await sleep(500);
+  check('waza: buy 5 from the plug', await G(page, () => window.__abuja.save.waza === 5));
+  await pressUntil(page, 'KeyE', async () => !(await page.isVisible('#dialogue')), 8);
+  await G(page, () => { const g = window.__abuja; g.giveCash({ name: 'Bros', person: null, spot: null, almajiri: false }); });
+  await pressUntil(page, 'KeyE', () => page.isVisible('.d-choice:has-text("Sell waza")'), 6);
+  check('waza: sell option when you have stock', await page.isVisible('.d-choice:has-text("Sell waza")'));
+  await page.screenshot({ path: `${OUT}/39-waza.png` });
+  await page.keyboard.press('Escape');
+  await page.click('.d-choice:has-text("another time")').catch(() => {});
+  await pressUntil(page, 'KeyE', async () => !(await page.isVisible('#dialogue')), 8);
   // Mute button.
   await pressUntil(page, 'KeyN', () => G(page, () => window.__abuja.save.settings.muted === true), 3);
   check('audio: N key mutes', await G(page, () => window.__abuja.save.settings.muted === true && document.getElementById('mute').classList.contains('muted')));

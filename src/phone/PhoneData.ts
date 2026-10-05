@@ -155,7 +155,8 @@ export function transferOp(c: Contact, amount: number): BankOp {
 export const BILLS: { id: string; label: string; amount: number; clout: number; reply: { from: string; text: string }; endsBlackout?: boolean }[] = [
   { id: 'airtime', label: 'MTN Airtime', amount: 1000, clout: 0, reply: { from: 'MTN', text: 'You have received ₦1,000 airtime. Dial *310# to check your balance.' } },
   { id: 'data', label: 'MTN Data 5GB', amount: 3500, clout: 1, reply: { from: 'MTN', text: 'Dear customer, your 5GB data plan is now active. Valid for 30 days.' } },
-  { id: 'nepa', label: 'AEDC Electricity Token', amount: 5000, clout: 1, endsBlackout: true, reply: { from: 'AEDC', text: 'Token: 4821-3390-1176-2045-9933. Light don come back! 💡' } },
+  { id: 'nepa', label: 'AEDC Prepaid Token (25 kWh)', amount: 5000, clout: 1, endsBlackout: true, reply: { from: 'AEDC', text: 'Token: 4821-3390-1176-2045-9933 • 25 kWh. Load am for your meter. Light don come back! 💡' } },
+  { id: 'estate', label: 'Estate Service Charge (1 week)', amount: 10000, clout: 1, reply: { from: 'Sunshine Court Estate', text: 'Payment received. Thank you for keeping our estate safe and clean. — Mrs. Okon' } },
   { id: 'dstv', label: 'Cable TV Subscription', amount: 7000, clout: 2, reply: { from: 'Cable TV', text: 'Subscription renewed. Enjoy the Super Eagles match this weekend!' } },
 ];
 

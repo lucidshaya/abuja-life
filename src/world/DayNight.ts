@@ -58,6 +58,21 @@ export function formatClock(hour: number): string {
   return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
+export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** Game day 1 is a Monday. */
+export function weekday(day: number): string {
+  return WEEKDAYS[(((Math.floor(day) - 1) % 7) + 7) % 7];
+}
+
+/** "Monday" in week 1, "Monday (Wk 2)" after that. */
+export function dayLabel(day: number, short = false): string {
+  const w = weekday(day);
+  const name = short ? w.slice(0, 3) : w;
+  const week = Math.floor((Math.floor(day) - 1) / 7) + 1;
+  return week > 1 ? `${name} (Wk ${week})` : name;
+}
+
 export class DayNight {
   readonly sun: THREE.DirectionalLight;
   readonly hemi: THREE.HemisphereLight;
