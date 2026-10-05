@@ -542,7 +542,20 @@ export class Game {
 
   /** Your save lives on your account: log in on any device and it follows you. */
   private async pullCloudSave(me: Me): Promise<void> {
-    const raw = await this.social.backend.loadCloudSave().catch(() => null);
+    this.cloudReady = false;
+    let raw: string | null = null;
+    for (let i = 0; ; i++) {
+      try {
+        raw = await this.social.backend.loadCloudSave();
+        break;
+      } catch {
+        // Never treat a failed load as "no save": uploading a fresh save would wipe the account's progress.
+        // After 3 tries, play from this device with uploads off until the next login.
+        if (i >= 2) return;
+        await new Promise((r) => window.setTimeout(r, 1500 * (i + 1)));
+      }
+    }
+    this.cloudReady = true;
     const cloud = parseSave(raw);
     const settings = this.save.settings;
     if (cloud) {
@@ -562,9 +575,11 @@ export class Game {
 
   private cloudTimer = 0;
   private cloudDirty = false;
+  /** True once this account's cloud save was read; until then uploads could overwrite real progress. */
+  private cloudReady = false;
   /** Upload the save to the account (throttled; `now` forces it). */
   private pushCloud(now = false): void {
-    if (!this.social?.me?.username || this.save.owner !== this.social.me.id) return;
+    if (!this.cloudReady || !this.social?.me?.username || this.save.owner !== this.social.me.id) return;
     this.cloudDirty = true;
     if (!now && this.cloudTimer) return;
     const go = () => {

@@ -28,7 +28,9 @@ export class SupabaseBackend implements OnlineBackend {
     const { data } = await this.sb.auth.getSession();
     const user = data.session?.user;
     if (!user) return (this.me = null);
-    const { data: p } = await this.sb.from('profiles').select('username').eq('id', user.id).maybeSingle();
+    const { data: p, error } = await this.sb.from('profiles').select('username').eq('id', user.id).maybeSingle();
+    // Don't mistake a network error for "no username yet" (that would ask a returning player to pick a new one).
+    if (error) throw new Error('Could not load your account. Check your connection and try again.');
     this.me = { id: user.id, email: user.email ?? '', username: (p?.username as string | undefined) ?? null };
     return this.me;
   }
@@ -54,13 +56,15 @@ export class SupabaseBackend implements OnlineBackend {
 
   async loadCloudSave(): Promise<string | null> {
     const id = await this.uid();
-    const { data } = await this.sb.from('saves').select('data').eq('id', id).maybeSingle();
+    const { data, error } = await this.sb.from('saves').select('data').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
     return data?.data ? JSON.stringify(data.data) : null;
   }
 
   async storeCloudSave(json: string): Promise<void> {
     const id = await this.uid();
-    await this.sb.from('saves').upsert({ id, data: JSON.parse(json), updated_at: new Date().toISOString() }, { onConflict: 'id' });
+    const { error } = await this.sb.from('saves').upsert({ id, data: JSON.parse(json), updated_at: new Date().toISOString() }, { onConflict: 'id' });
+    if (error) throw new Error(error.message);
   }
 
   async claimUsername(username: string): Promise<void> {

@@ -1,5 +1,7 @@
 # Abuja Life 🇳🇬
 
+**Play now:** https://abuja-life-phi.vercel.app
+
 A 3D open-world browser game with real Abuja vibes. Explore a stylized FCT, from Zuma Rock and the Kubwa
 expressway hold-up to Wuse 2 suya spots, Maitama mansions, Jabi Lake, Wuse Market, Area 1 roundabout,
 Eagle Square, the National Mosque and Aso Rock. Customize your character, drive, and get into Naija
