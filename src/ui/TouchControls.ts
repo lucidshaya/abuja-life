@@ -10,8 +10,9 @@ function buzz(ms = 12): void {
 }
 
 /**
- * Mobile controls: floating joystick (left), drag-to-look (right),
- * big thumb buttons. Uses pointer events so multi-touch just works.
+ * Mobile controls: floating joystick (left), drag anywhere on the right
+ * half to turn (no buttons there), action buttons in a column at the left
+ * edge. Uses pointer events so multi-touch just works.
  */
 export class TouchControls {
   private root = $('touch');
@@ -57,25 +58,19 @@ export class TouchControls {
       this.btns[cls] = b;
       return b;
     };
-    // Action buttons: move to top row (left side) and action/car (right side below sprint).
-    const leftBtns = h('div.ttop-left', {},
-      mk('dance', '💃🏾', 'dance', false),
-      mk('map', '🗺️', 'map', false),
-      mk('phone', '📱', 'phone', false),
-      mk('pause', 'II', 'pause', false),
-    );
-    for (const [k, l] of [['dance', 'Dance'], ['map', 'Map'], ['phone', 'Phone'], ['pause', 'Pause']] as const) this.btns[k].setAttribute('aria-label', l);
-    const rightBtns = h('div.ttop-right', {},
-      (this.actionBtn = mk('action', 'Talk', 'interact', false)),
-      mk('car', 'Car', 'vehicle', false),
-      (this.hornBtn = mk('horn', 'Horn', 'horn', false)),
-      (this.giveBtn = mk('give', 'Give', 'give', false)),
-    );
-    const cluster = h('div.tcluster', {},
+    // The whole right side is for turning, so every button lives on the left:
+    // a column at the left edge (only the ones that apply right now) and the menu row at the top.
+    const column = h('div.tleft', {},
       mk('jump', 'Jump', 'jump', true),
-      mk('sprint', 'Run', 'sprint', true),
+      mk('sprint', 'Nitro', 'sprint', true),
+      mk('car', 'Car', 'vehicle', false),
+      (this.actionBtn = mk('action', 'Talk', 'interact', false)),
+      (this.giveBtn = mk('give', 'Give', 'give', false)),
+      (this.hornBtn = mk('horn', 'Horn', 'horn', false)),
     );
-    this.root.append(this.lookZone, this.stickZone, cluster, leftBtns, rightBtns);
+    const menu = h('div.tmenu', {}, mk('dance', '💃🏾', 'dance', false), mk('map', '🗺️', 'map', false), mk('phone', '📱', 'phone', false), mk('pause', 'II', 'pause', false));
+    for (const [k, l] of [['dance', 'Dance'], ['map', 'Map'], ['phone', 'Phone'], ['pause', 'Pause']] as const) this.btns[k].setAttribute('aria-label', l);
+    this.root.append(this.lookZone, this.stickZone, column, menu);
 
     this.stickZone.addEventListener('pointerdown', (e) => {
       if (this.stickId !== null) return;
@@ -175,7 +170,8 @@ export class TouchControls {
     show(this.btns.car, inCar || nearCar);
     if (give) this.giveBtn.querySelector('span')!.textContent = give;
     this.btns.jump.querySelector('span')!.textContent = inCar ? 'Brake' : 'Jump';
-    this.btns.sprint.querySelector('span')!.textContent = inCar ? 'Nitro' : 'Run';
+    // On foot, pushing the stick all the way already runs; Nitro is for driving.
+    show(this.btns.sprint, inCar);
     this.btns.car.querySelector('span')!.textContent = inCar ? 'Exit' : 'Car';
     show(this.hornBtn, inCar);
     show(this.actionBtn, !!action);
