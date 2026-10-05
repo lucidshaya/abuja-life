@@ -67,6 +67,14 @@ class Lights {
 
 const vc = (geo: THREE.BufferGeometry, color: number) => normalizeGeo(paint(geo, color));
 
+/** Many always-lit boxes (ceiling lights, stage lamps) merged into one unlit mesh. */
+function glowBoxes(g: THREE.Object3D, boxes: [number, number, number, number, number, number, number][], intensity = 1): void {
+  if (!boxes.length) return;
+  const geos = boxes.map(([x, y, z, w, h, d, c]) => paint(new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z), new THREE.Color(c).multiplyScalar(intensity)));
+  g.add(new THREE.Mesh(mergeGeometries(geos), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })));
+  geos.forEach((x) => x.dispose());
+}
+
 function vcMesh(list: THREE.BufferGeometry[]): THREE.Mesh {
   const m = new THREE.Mesh(mergeGeometries(list), new THREE.MeshLambertMaterial({ vertexColors: true }));
   m.castShadow = true;
@@ -244,7 +252,7 @@ function farmCity(world: CollisionWorld, b: Build): void {
   k.box(103, 0, 80.6, 14, 4.6, 0.3, 0x1a1a1a, true);
   for (const x of [96.2, 109.8]) k.cyl(x, 0, 89.3, 0.15, 0.15, 4.8, 0x8a8a8a, 6, 4.8);
   k.box(103, 4.7, 89.3, 14, 0.3, 0.3, 0x8a8a8a);
-  [0xff3df0, 0x3dd8ff, 0xfff23d, 0x6cff3d, 0xff7a3d].forEach((c, i) => glow(g, 98 + i * 2.5, 4.3, 89.1, 0.4, 0.35, 0.4, c, 1));
+  glowBoxes(g, [0xff3df0, 0x3dd8ff, 0xfff23d, 0x6cff3d, 0xff7a3d].map((c, i) => [98 + i * 2.5, 4.3, 89.1, 0.4, 0.35, 0.4, c]));
   for (const x of [96.9, 109.1]) k.box(x, 0, 88.6, 1.1, 2.2, 1, 0x111111, true);
   k.cyl(103, 0.12, 82.7, 0.5, 0.5, 0.55, 0xc0262d, 12);
   for (const s of [-1, 1]) k.cyl(103 + s, 0.12, 83.3, 0.28, 0.28, 0.45, 0xdddddd, 10);
@@ -324,7 +332,9 @@ function farmCityInterior(world: CollisionWorld, b: Build): void {
   const ceil = new THREE.Mesh(new THREE.PlaneGeometry(52, 42).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x2a1c14 }));
   ceil.position.set(1725, H, -20);
   g.add(ceil);
-  for (let x = 1706; x < 1748; x += 8) for (let z = -34; z < -2; z += 8) glow(g, x, H - 0.12, z, 1.6, 0.08, 1.6, 0xffe2b0, 0.9);
+  const ceilLights: [number, number, number, number, number, number, number][] = [];
+  for (let x = 1706; x < 1748; x += 8) for (let z = -34; z < -2; z += 8) ceilLights.push([x, H - 0.12, z, 1.6, 0.08, 1.6, 0xffe2b0]);
+  glowBoxes(g, ceilLights, 0.9);
 
   // Bar (west wall).
   k.box(1704.7, 0, -22, 1.0, 1.15, 24, 0x3a2418, true);
@@ -340,12 +350,14 @@ function farmCityInterior(world: CollisionWorld, b: Build): void {
 
   // Game arcade (north wall).
   const screens: THREE.Mesh[] = [];
+  const marquees: [number, number, number, number, number, number, number][] = [];
   [1710, 1714, 1718, 1730, 1734, 1738].forEach((x, i) => {
     k.box(x, 0, -38.3, 1.5, 2.1, 1.3, [0x1a1a6a, 0x6a1a1a, 0x1a5a2a, 0x3a1a6a, 0x111111, 0x6a4a1a][i], true);
     k.box(x, 0.95, -37.4, 1.4, 0.12, 0.5, 0x222222);
     screens.push(glow(g, x, 1.1, -37.62, 1.1, 0.8, 0.04, 0x3dd8ff, 1));
-    glow(g, x, 1.85, -37.62, 1.3, 0.22, 0.04, [0xff3df0, 0xfff23d, 0x6cff3d, 0xff7a3d, 0x3dd8ff, 0xff3d6a][i], 1.2);
+    marquees.push([x, 1.85, -37.62, 1.3, 0.22, 0.04, [0xff3df0, 0xfff23d, 0x6cff3d, 0xff7a3d, 0x3dd8ff, 0xff3d6a][i]]);
   });
+  glowBoxes(g, marquees, 1.2);
   // Claw machine.
   k.box(1744, 0, -37.6, 2, 0.9, 2, 0xd94f8c, true);
   const clawGlass = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.4, 1.9), new THREE.MeshPhongMaterial({ color: 0xbfe3ff, transparent: true, opacity: 0.35 }));
@@ -623,7 +635,9 @@ function hiltonLobby(world: CollisionWorld, b: Build): void {
   const ceil = new THREE.Mesh(new THREE.PlaneGeometry(62, 42).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xf2ece0 }));
   ceil.position.set(1730, H, 80);
   g.add(ceil);
-  for (let x = 1708; x < 1756; x += 12) for (const z of [66, 94]) glow(g, x, H - 0.1, z, 2, 0.06, 2, 0xfff4dc, 0.9);
+  const ceilLights: [number, number, number, number, number, number, number][] = [];
+  for (let x = 1708; x < 1756; x += 12) for (const z of [66, 94]) ceilLights.push([x, H - 0.1, z, 2, 0.06, 2, 0xfff4dc]);
+  glowBoxes(g, ceilLights, 0.9);
   // Rug and chandelier.
   k.floor(1721, 71, 1739, 89, 0.015, 0xc9a96e);
   k.floor(1722, 72, 1738, 88, 0.018, 0x7a1f3d);
@@ -636,11 +650,9 @@ function hiltonLobby(world: CollisionWorld, b: Build): void {
       crystals.push(new THREE.OctahedronGeometry(0.14, 0).scale(1, 1.8, 1).translate(1730 + Math.cos(a) * r, y, 80 + Math.sin(a) * r));
     }
   }
-  crystals.push(new THREE.SphereGeometry(0.35, 10, 8).translate(1730, 4.6, 80));
-  const chand = new THREE.Mesh(mergeGeometries(crystals.map((c) => c.toNonIndexed())), new THREE.MeshBasicMaterial({ color: 0xfff1c8, toneMapped: false }));
+  crystals.push(new THREE.SphereGeometry(0.35, 10, 8).translate(1730, 4.6, 80).toNonIndexed());
+  const chand = new THREE.Mesh(mergeGeometries(crystals), new THREE.MeshBasicMaterial({ color: 0xfff1c8, toneMapped: false }));
   g.add(chand);
-  b.animators.push((t) => (chand.rotation.y = Math.sin(t * 0.3) * 0.05));
-  chand.position.set(0, 0, 0);
   // Columns.
   for (const [x, z] of [[1716, 70], [1744, 70], [1716, 90], [1744, 90]] as const) {
     k.cyl(x, 0, z, 0.6, 0.6, H, 0xf2ede2, 16, true);
@@ -1597,10 +1609,8 @@ function airport(world: CollisionWorld, b: Build): void {
     if (i === 0) cap.moveTo(zz, yy);
     else cap.lineTo(zz, yy);
   }
-  cap.lineTo(-20, 14);
-  cap.lineTo(20, 14);
   k.geo(new THREE.ShapeGeometry(cap).rotateY(-HALF).translate(-804, 0, 216), 0xc9d1d8);
-  k.geo(new THREE.ShapeGeometry(cap).scale(-1, 1, 1).rotateY(HALF).translate(-696, 0, 216), 0xc9d1d8);
+  k.geo(new THREE.ShapeGeometry(cap).rotateY(HALF).translate(-696, 0, 216), 0xc9d1d8);
   const glass = new THREE.Mesh(new THREE.BoxGeometry(96, 12.4, 0.15).translate(-750, 6.7, 236.12), new THREE.MeshPhongMaterial({ color: 0x8fc6e8, transparent: true, opacity: 0.5, shininess: 120, specular: 0xffffff, depthWrite: false }));
   g.add(glass);
   lit.box(-750, 0.5, 235.98, 96, 12.4, 0.06);
@@ -1695,7 +1705,7 @@ function airport(world: CollisionWorld, b: Build): void {
     const z = 385 - s;
     fly.visible = z > -700 && y < 260;
     fly.position.set(-890, y, z);
-    fly.rotation.x = -pitch;
+    fly.rotation.x = pitch;
   });
 
   const traveller = { carry: 'trolley' as const };

@@ -42,6 +42,21 @@ export function lookConfig(look: NpcLook): CharacterConfig {
     bartender: { outfit: 'suit', primary: ci(0x111111), secondary: ci(0xc0262d), hair: 'afro', skin: 2 },
     dj: { outfit: 'jersey', primary: ci(0x6c2c91), headwear: 'cap', shades: true, hair: 'dreads', skin: 1 },
     agent: { outfit: 'suit', primary: ci(0x123e7c), secondary: ci(0xe8a317), hair: 'lowcut', skin: 2 },
+    // ---- Abuja2 places ----
+    waiter: { outfit: 'suit', primary: ci(0xffffff), secondary: ci(0x111111), hair: 'lowcut', skin: 2 },
+    musician: { outfit: 'senator', primary: ci(0xc0262d), secondary: ci(0x111111), headwear: 'fila', shades: true, skin: 1 },
+    operator: { outfit: 'jersey', primary: ci(0xe8a317), headwear: 'cap', build: 'slim', skin: 3 },
+    vendor: { outfit: 'iroBuba', primary: ci(0xf26b1d), secondary: ci(0x0f8a4b), pattern: 'circles', hair: 'gele', headwear: 'none', facialHair: 'none', build: 'heavy', skin: 2 },
+    receptionist: { outfit: 'suit', primary: ci(0x111111), secondary: ci(0xc9a96e), hair: 'braids', headwear: 'none', facialHair: 'none', skin: 4 },
+    activist: { outfit: 'ankara', primary: ci(0x0f8a4b), secondary: ci(0xffffff), pattern: 'stripes', hair: 'braids', headwear: 'none', facialHair: 'none', skin: 3 },
+    coach: { outfit: 'jersey', primary: ci(0x0f8a4b), hair: 'braids', headwear: 'none', facialHair: 'none', build: 'slim', skin: 2 },
+    journalist: { outfit: 'suit', primary: ci(0x2a64c9), secondary: ci(0xffffff), hair: 'lowcut', specs: true, skin: 1 },
+    senator: { outfit: 'agbada', primary: ci(0xf2e6c9), secondary: ci(0xc9a96e), pattern: 'plain', headwear: 'fila', facialHair: 'moustache', build: 'heavy', specs: true, skin: 1 },
+    star: { outfit: 'asoebi', primary: ci(0x6c2c91), secondary: ci(0xe8a317), pattern: 'waves', hair: 'braids', headwear: 'none', facialHair: 'none', shades: true, skin: 5 },
+    tout: { outfit: 'jersey', primary: ci(0xf26b1d), headwear: 'cap', build: 'slim', skin: 0 },
+    airline: { outfit: 'suit', primary: ci(0x123e7c), secondary: ci(0xc0262d), hair: 'braids', headwear: 'none', facialHair: 'none', skin: 3 },
+    customs: { outfit: 'suit', primary: ci(0x3f4a2f), secondary: ci(0x3f4a2f), headwear: 'cap', build: 'heavy', skin: 1 },
+    traveller: { outfit: 'ankara', primary: ci(0xd94f8c), secondary: ci(0xffffff), pattern: 'diamonds', hair: 'braids', headwear: 'none', facialHair: 'none', shades: true, skin: 4 },
     none: {},
   };
   return { ...base, facialHair: 'none', ...L[look] };

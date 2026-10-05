@@ -19,6 +19,9 @@ export const INTERIORS: Interior[] = [
   { id: 'mall', name: 'Jabi Lake Mall', tagline: 'AC, shopping and small chops. Enjoyment don land.', rect: { x0: 1400, z0: -60, x1: 1540, z1: 40 }, light: 'mall', music: 'city' },
   { id: 'cage', name: 'The Cage', tagline: 'Amapiano till morning. No sleeping for here.', rect: { x0: 1400, z0: 180, x1: 1446, z1: 216 }, light: 'club', music: 'club' },
   { id: 'lt1', name: 'Lecture Theatre 1', tagline: 'Sit down. Attendance dey count.', rect: { x0: 1600, z0: -20, x1: 1640, z1: 12 }, light: 'hall', music: 'city' },
+  // ---- Abuja2 places ----
+  { id: 'farmcity', name: 'Farm City Lounge', tagline: 'Bar, arcade and live band. Open 24 hours, no dulling.', rect: { x0: 1700, z0: -40, x1: 1750, z1: 0 }, light: 'club', music: 'club' },
+  { id: 'hilton', name: 'Transcorp Hilton Lobby', tagline: 'Marble floor, big men and very cold AC.', rect: { x0: 1700, z0: 60, x1: 1760, z1: 100 }, light: 'mall', music: 'city' },
 ];
 
 export function interiorAt(x: number, z: number): Interior | null {
@@ -46,6 +49,12 @@ export const PORTALS: Portal[] = [
   // Nile University lecture theatre
   { id: 'lt1-in', label: 'Enter Lecture Theatre 1', x: -520, z: 132, to: { x: 1620, z: 6.5, heading: Math.PI } },
   { id: 'lt1-out', label: 'Exit to campus', x: 1620, z: 10.5, to: { x: -520, z: 137, heading: 0 } },
+  // Farm City (Wuse 2)
+  { id: 'farmcity-in', label: 'Enter Farm City Lounge', x: 89, z: 73.6, to: { x: 1725, z: -6, heading: Math.PI } },
+  { id: 'farmcity-out', label: 'Exit to the garden', x: 1725, z: -1.5, to: { x: 89, z: 77.5, heading: 0 } },
+  // Transcorp Hilton (Maitama)
+  { id: 'hilton-in', label: 'Enter Transcorp Hilton', x: 66, z: -304.6, to: { x: 1730, z: 94, heading: Math.PI } },
+  { id: 'hilton-out', label: 'Exit to the driveway', x: 1730, z: 98.5, to: { x: 66, z: -300, heading: 0 } },
 ];
 
 export interface TravelSpot {
@@ -102,5 +111,56 @@ export const TRAVEL: TravelSpot[] = [
     id: 'market', name: 'Wuse Market', area: 'Utako', featured: false, color: '#e8a317',
     desc: 'Haggle with Mama Nkechi for aso-ebi fabric. Bring your bargaining power.',
     x: -232, z: 142, heading: 0,
+  },
+  // ---- Abuja2 places ----
+  {
+    id: 'farmcity', name: 'Farm City', area: 'Wuse 2 • Kashim Ibrahim Way', featured: true, color: '#1d5a2a',
+    desc: '24-hour restaurant, bar & lounge: garden tables, live band nights, pepper soup and a game arcade.',
+    x: 89, z: 107, heading: Math.PI,
+  },
+  {
+    id: 'banex', name: 'Banex Plaza', area: 'Wuse 2 • Phones & gadgets', featured: false, color: '#123e7c',
+    desc: 'Phone plaza: buy "London used", fix your screen or sell your phone to Alhaji Swap.',
+    x: -61, z: 94.5, heading: Math.PI,
+  },
+  {
+    id: 'hilton', name: 'Transcorp Hilton', area: 'Maitama • 5-star hotel', featured: true, color: '#b8963e',
+    desc: 'Big white tower, flags and fountains. Book a room, hit the pool, network with oil magnates.',
+    x: 1730, z: 92, heading: Math.PI, pin: { x: 66, z: -320 },
+  },
+  {
+    id: 'unity', name: 'Unity Fountain', area: 'Maitama • 36 states + FCT', featured: false, color: '#2f8fc0',
+    desc: 'Fountain ringed by a pillar for every state. Jog, snap pictures or join the candlelight vigil.',
+    x: 64, z: -158, heading: Math.PI,
+  },
+  {
+    id: 'nass', name: 'National Assembly', area: 'Three Arms Zone', featured: true, color: '#1f8a4b',
+    desc: 'The green dome. Watch plenary from the gallery, talk to the press or join the protest at the gate.',
+    x: 470, z: 74, heading: Math.PI,
+  },
+  {
+    id: 'silverbird', name: 'Silverbird Galleria', area: 'Central Area • Cinema', featured: false, color: '#0d2a4a',
+    desc: 'Glass-front mall and cinema: Nollywood premieres, popcorn and red carpet selfies.',
+    x: 329, z: 110, heading: Math.PI,
+  },
+  {
+    id: 'wonderland', name: 'Wonderland Amusement Park', area: 'Garki • Rides', featured: false, color: '#6c2c91',
+    desc: 'Ferris wheel, carousel, bumper cars and candy floss. Bring the pikin dem.',
+    x: 60, z: 268, heading: 0,
+  },
+  {
+    id: 'motorpark', name: 'Jabi Motor Park', area: 'Utako • Interstate buses', featured: false, color: '#1f9a4f',
+    desc: 'Buses to Kaduna, Lagos, Jos and Kano. Touts, ticket booths and mai shayi tea.',
+    x: -300, z: 146, heading: 0,
+  },
+  {
+    id: 'stadium', name: 'National Stadium', area: 'Airport Road • Super Eagles', featured: true, color: '#0f8a4b',
+    desc: 'Moshood Abiola National Stadium: watch the Super Eagles, buy a jersey, jog the track.',
+    x: -505, z: 272, heading: 0,
+  },
+  {
+    id: 'airport', name: 'Nnamdi Azikiwe Airport', area: 'Airport Road • Flights', featured: false, color: '#2a64c9',
+    desc: 'Terminal, control tower and planes on the runway. Check in, clear customs, welcome your cousin.',
+    x: -750, z: 252, heading: Math.PI,
   },
 ];

@@ -40,6 +40,8 @@ export type NpcLook =
   | 'vio' | 'mallam' | 'mama' | 'bigman' | 'clerk' | 'pastor' | 'uncle' | 'guard' | 'boatman' | 'driver' | 'pos' | 'aunty'
   | 'mallguard' | 'cashier' | 'promo' | 'chef' | 'phoneguy' | 'uniguard' | 'lecturer' | 'librarian' | 'cafmama' | 'captain'
   | 'sugguy' | 'photographer' | 'groom' | 'icecream' | 'horseman' | 'picnic' | 'bouncer' | 'bartender' | 'dj' | 'agent'
+  | 'waiter' | 'musician' | 'operator' | 'vendor' | 'receptionist' | 'activist' | 'coach' | 'journalist' | 'senator'
+  | 'star' | 'tout' | 'airline' | 'customs' | 'traveller'
   /** An interactive object (no person), shown with a marker only. */
   | 'none';
 
@@ -138,6 +140,22 @@ export const DISTRICTS: District[] = [
     ...cell(3, 2), color: '#a3c58c', ground: 0x6a9446,
     style: 'mansion', minH: 7, maxH: 14, density: 0.8, palette: [0xffffff, 0xf2ece0, 0xe3ddd0, 0xf5e9dc], minorRoads: true,
   },
+  // ---- Areas built by locations/Abuja2.ts ----
+  {
+    id: 'assembly', name: 'Three Arms Zone', tagline: 'National Assembly, Aso Rock and plenty soldiers. Behave yourself.',
+    x0: 383, x1: 556, z0: -115, z1: 125, color: '#c9d9b0', ground: 0x739a4c,
+    style: 'none', minH: 0, maxH: 0, density: 0, palette: [], minorRoads: false,
+  },
+  {
+    id: 'stadium', name: 'National Stadium', tagline: 'Moshood Abiola Stadium. Super Eagles, vuvuzela and jollof outside.',
+    x0: -625, x1: -385, z0: 247, z1: 420, color: '#7fc46a', ground: 0x86a052,
+    style: 'none', minH: 0, maxH: 0, density: 0, palette: [], minorRoads: false,
+  },
+  {
+    id: 'airport', name: 'Nnamdi Azikiwe Airport', tagline: 'Flight dey delay but the airport fine. Welcome to Abuja!',
+    x0: -920, x1: -625, z0: -115, z1: 420, color: '#a9b8c9', ground: 0x9a9258,
+    style: 'none', minH: 0, maxH: 0, density: 0, palette: [], minorRoads: false,
+  },
 ];
 
 /** Areas that the procedural builder must leave empty for landmarks. */
@@ -153,6 +171,14 @@ export const RESERVED: Rect[] = [
   { x0: 6, z0: 6, x1: 60, z1: 40 }, // Suya joint
   { x0: 278, z0: 30, x1: 322, z1: 62 }, // Ministry of Wahala
   { x0: 62, z0: -110, x1: 112, z1: -60 }, // The Cage club
+  // ---- Abuja2 places ----
+  { x0: 46, z0: 46, x1: 114, z1: 114 }, // Farm City, Wuse 2
+  { x0: -114, z0: 46, x1: -8, z1: 114 }, // Banex Plaza, Wuse 2
+  { x0: 8, z0: -364, x1: 114, z1: -256 }, // Transcorp Hilton, Maitama
+  { x0: 8, z0: -244, x1: 114, z1: -134 }, // Unity Fountain, Maitama
+  { x0: 294, z0: 66, x1: 364, z1: 114 }, // Silverbird Galleria, Central
+  { x0: 8, z0: 256, x1: 114, z1: 364 }, // Wonderland, Garki
+  { x0: -364, z0: 134, x1: -256, z1: 244 }, // Jabi Motor Park, Utako
 ];
 
 /** Areas kept free of scattered trees because a location is built there. */
@@ -161,6 +187,18 @@ export const NO_TREES: Rect[] = [
   { x0: -248, z0: -118, x1: -128, z1: -50 }, // Jabi Lake Mall + car park
   { x0: 381, z0: 131, x1: 558, z1: 382 }, // Guzape
   { x0: 133, z0: -367, x1: 367, z1: -133 }, // Millennium Park interior
+  // ---- Abuja2 places ----
+  { x0: 46, z0: 46, x1: 114, z1: 114 }, // Farm City
+  { x0: -114, z0: 46, x1: -8, z1: 114 }, // Banex Plaza
+  { x0: 8, z0: -364, x1: 114, z1: -256 }, // Transcorp Hilton
+  { x0: 8, z0: -244, x1: 114, z1: -134 }, // Unity Fountain
+  { x0: 294, z0: 66, x1: 364, z1: 114 }, // Silverbird Galleria
+  { x0: 8, z0: 256, x1: 114, z1: 364 }, // Wonderland
+  { x0: -364, z0: 134, x1: -256, z1: 244 }, // Jabi Motor Park
+  { x0: 383, z0: -115, x1: 556, z1: 122 }, // National Assembly
+  { x0: -625, z0: 246, x1: -385, z1: 420 }, // National Stadium
+  { x0: -915, z0: -100, x1: -640, z1: 300 }, // Airport terminal, apron, runway
+  { x0: -915, z0: 300, x1: -862, z1: 415 }, // Runway (south end)
 ];
 
 export const LANDMARKS = {
@@ -225,6 +263,49 @@ export const NPC_SPOTS: NpcSpot[] = [
   // ---- Guzape ----
   { id: 'agent', name: 'Estate Agent Kola', x: 425, z: 240, facing: Math.PI / 2, eventId: 'guzape-agent', look: 'agent' },
   { id: 'viewpoint', name: 'Guzape Viewpoint', x: 470, z: 150, facing: 0, eventId: 'guzape-view', look: 'none' },
+  // ======== Abuja2 places (locations/Abuja2.ts, events/eventsPlaces.ts) ========
+  // ---- Farm City (Wuse 2) + lounge interior ----
+  { id: 'fc-waiter', name: 'Waitress Amaka', x: 60, z: 80, facing: Math.PI, eventId: 'farmcity-food', look: 'waiter' },
+  { id: 'fc-band', name: 'Bandleader Chuks', x: 95, z: 91, facing: -Math.PI / 2, eventId: 'farmcity-band', look: 'musician' },
+  { id: 'fc-arcade', name: 'Arcade Attendant', x: 1724, z: -34.5, facing: 0, eventId: 'farmcity-arcade', look: 'operator' },
+  { id: 'fc-bar', name: 'Lounge Bartender', x: 1703.6, z: -22, facing: Math.PI / 2, eventId: 'farmcity-lounge', look: 'bartender' },
+  // ---- Banex Plaza ----
+  { id: 'banex-phone', name: 'Phone Hawker Ik', x: -58.5, z: 90, facing: 0, eventId: 'banex-buy', look: 'phoneguy' },
+  { id: 'banex-repair', name: 'Screen Doctor', x: -39.5, z: 79.6, facing: 0, eventId: 'banex-repair', look: 'vendor' },
+  { id: 'banex-buyer', name: 'Alhaji "Swap"', x: -82, z: 79.6, facing: 0, eventId: 'banex-sell', look: 'mallam' },
+  // ---- Transcorp Hilton (+ lobby interior) ----
+  { id: 'hilton-reception', name: 'Receptionist Zainab', x: 1730, z: 62, facing: 0, eventId: 'hilton-room', look: 'receptionist' },
+  { id: 'hilton-bigman', name: 'Chief Dagogo (Oil Magnate)', x: 1712, z: 84, facing: Math.PI / 2, eventId: 'hilton-network', look: 'bigman' },
+  { id: 'hilton-pool', name: 'Pool Waiter', x: 90, z: -350, facing: -Math.PI / 2, eventId: 'hilton-pool', look: 'waiter' },
+  // ---- Unity Fountain ----
+  { id: 'unity-vigil', name: 'Vigil Organiser', x: 58, z: -213, facing: 0, eventId: 'unity-vigil', look: 'activist' },
+  { id: 'unity-jog', name: 'Coach Fatima', x: 99.5, z: -190, facing: -Math.PI / 2, eventId: 'unity-jog', look: 'coach' },
+  { id: 'unity-photo', name: 'Fountain Photographer', x: 64, z: -164, facing: Math.PI, eventId: 'unity-photo', look: 'photographer' },
+  // ---- National Assembly (Three Arms Zone) ----
+  { id: 'nass-clerk', name: 'Clerk of the House', x: 464, z: -3.5, facing: 0, eventId: 'nass-gallery', look: 'clerk' },
+  { id: 'nass-protest', name: 'Protest Leader Aisha', x: 440, z: 73, facing: 0, eventId: 'nass-protest', look: 'activist' },
+  { id: 'nass-press', name: 'Reporter Tolu', x: 500, z: 73, facing: 0, eventId: 'nass-press', look: 'journalist' },
+  { id: 'nass-senator', name: 'Distinguished Senator Okon', x: 484, z: 30, facing: -Math.PI / 2, eventId: 'nass-senator', look: 'senator' },
+  // ---- Silverbird Galleria ----
+  { id: 'sb-ticket', name: 'Cinema Ticket Girl', x: 319.5, z: 106, facing: 0, eventId: 'silverbird-movie', look: 'promo' },
+  { id: 'sb-popcorn', name: 'Popcorn Seller', x: 342.5, z: 106, facing: 0, eventId: 'silverbird-popcorn', look: 'vendor' },
+  { id: 'sb-star', name: 'Nollywood Star', x: 334.5, z: 108, facing: -Math.PI / 2, eventId: 'silverbird-star', look: 'star' },
+  // ---- Wonderland Amusement Park ----
+  { id: 'wl-ferris', name: 'Ferris Wheel Operator', x: 78, z: 327, facing: Math.PI, eventId: 'wonderland-ferris', look: 'operator' },
+  { id: 'wl-bumper', name: 'Bumper Car Boy', x: 70, z: 280.5, facing: -Math.PI / 2, eventId: 'wonderland-bumper', look: 'operator' },
+  { id: 'wl-candy', name: 'Candy Floss Mama', x: 46, z: 304.2, facing: 0, eventId: 'wonderland-candy', look: 'vendor' },
+  // ---- Jabi Motor Park ----
+  { id: 'jmp-ticket', name: 'Ticket Agent', x: -351.5, z: 172, facing: Math.PI / 2, eventId: 'motorpark-ticket', look: 'agent' },
+  { id: 'jmp-tout', name: 'Agbero Tout', x: -312, z: 171, facing: Math.PI, eventId: 'motorpark-tout', look: 'tout' },
+  { id: 'jmp-shayi', name: 'Mai Shayi', x: -268, z: 188.4, facing: 0, eventId: 'motorpark-shayi', look: 'mallam' },
+  // ---- National Stadium ----
+  { id: 'st-match', name: 'Match Steward', x: -528, z: 279, facing: Math.PI, eventId: 'stadium-match', look: 'uniguard' },
+  { id: 'st-jersey', name: 'Jersey Seller', x: -478, z: 279, facing: Math.PI, eventId: 'stadium-jersey', look: 'vendor' },
+  { id: 'st-coach', name: 'Track Coach', x: -505, z: 321.5, facing: Math.PI, eventId: 'stadium-jog', look: 'coach' },
+  // ---- Nnamdi Azikiwe International Airport ----
+  { id: 'ap-checkin', name: 'Air Naija Check-in', x: -765, z: 238.6, facing: 0, eventId: 'airport-checkin', look: 'airline' },
+  { id: 'ap-customs', name: 'Customs Officer', x: -735, z: 238.6, facing: 0, eventId: 'airport-customs', look: 'customs' },
+  { id: 'ap-relative', name: 'Cousin Ada (just landed)', x: -712, z: 241, facing: 0, eventId: 'airport-welcome', look: 'traveller' },
 ];
 
 export const CAR_SPOTS: CarSpot[] = [
@@ -237,6 +318,10 @@ export const CAR_SPOTS: CarSpot[] = [
   { x: 262, z: -112, heading: Math.PI / 2, color: 0xe8a317, model: 'corolla' }, // Millennium Park
   { x: -143.5, z: -58, heading: Math.PI, color: 0x5b5f66, model: 'benz' }, // Jabi Lake Mall car park
   { x: 410, z: 258, heading: Math.PI / 2, color: 0xffffff, model: 'suv' }, // Guzape
+  // ---- Abuja2 places (append only: cars are reset by index) ----
+  { x: -760, z: 262, heading: Math.PI / 2, color: 0x1f3f7a, model: 'benz' }, // Airport forecourt
+  { x: -470, z: 275, heading: Math.PI / 2, color: 0x1f8a4b, model: 'corolla' }, // National Stadium plaza
+  { x: 395, z: 74, heading: Math.PI / 2, color: 0x111111, model: 'suv' }, // National Assembly (outside the gate)
 ];
 
 const MAJOR = 16;
@@ -267,6 +352,10 @@ export function buildRoads(): RoadSeg[] {
   // Nile University driveway and the road up to Guzape.
   roads.push({ x0: -470, z0: 60, x1: -375, z1: 60, width: MINOR, kind: 'minor' });
   roads.push({ x0: 375, z0: 250, x1: 545, z1: 250, width: MINOR, kind: 'minor' });
+  // Airport Road: from the x=-375 major past the National Stadium to the airport terminal.
+  roads.push({ x0: -700, z0: 258, x1: -375, z1: 258, width: MAJOR, kind: 'major' });
+  // Three Arms Zone access road in front of the National Assembly gate.
+  roads.push({ x0: 375, z0: 85, x1: 548, z1: 85, width: MINOR, kind: 'minor' });
   return roads;
 }
 
