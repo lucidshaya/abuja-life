@@ -192,14 +192,18 @@ Without a server configured, accounts stay on the device and multiplayer is off.
 2. **SQL Editor → New query**: paste `supabase/schema.sql` and **Run**.
 3. **Authentication → Sign In / Providers → Email**: turn **off** "Confirm email".
 4. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
-5. GitHub repo → **Settings → Secrets and variables → Actions → Variables**: add `VITE_SUPABASE_URL` and
-   `VITE_SUPABASE_ANON_KEY`. (For local dev, put them in `.env.local`, see `.env.example`.)
+5. Vercel project → **Settings → Environment Variables**: add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+   (all environments), then redeploy. (For local dev, put them in `.env.local`, see `.env.example`.)
 
 Because there's no email verification, anyone who knows a player's email can log into that account.
 
-## Deploying
+## Deploying (Vercel)
 
-`.github/workflows/pages.yml` tests, builds and deploys to GitHub Pages on every push to `main`. Enable Pages once
-(Settings → Pages → Source: GitHub Actions). The game is then live at `https://<user>.github.io/abuja-life/`.
+1. [vercel.com/new](https://vercel.com/new) → **Import** the `lucidshaya/abuja-life` GitHub repo. Settings come from
+   `vercel.json` (Vite, `npm test && npm run build`, output `dist`), so just press **Deploy**.
+2. Add the two Supabase environment variables (see above) and redeploy.
+3. Every push to the production branch (`main` by default) redeploys; other branches get preview links.
+
+`.github/workflows/pages.yml` can also deploy to GitHub Pages manually as a backup.
 
 Landmarks are stylized tributes. The ministry, mall and characters in the game are fictional.
