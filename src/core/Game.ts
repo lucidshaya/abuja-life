@@ -187,6 +187,7 @@ export class Game {
   private card!: PlayerCard;
   private estateInfo: EstateInfo | null = null;
   private estateTimer = 0;
+  private nearEstate = false;
   private plot = 0;
   /** The compound car spot that moves with your house. */
   private homeCarSpot = CAR_SPOTS.find((c) => c.x === PLOTS[0].car.x && c.z === PLOTS[0].car.z) ?? null;
@@ -698,7 +699,11 @@ export class Game {
     const t = this.social.backend.transport();
     if (t) {
       const net = new WorldNet(t, me.id);
-      net.onState = (st) => this.remotes.apply(st);
+      net.onState = (st) => {
+        this.remotes.apply(st);
+        // Someone new in your copy of the estate: they're a new neighbour, refresh the name plates.
+        if (st.inst.startsWith('estate:') && this.estateInfo && !this.estateInfo.neighbours.some((n) => n?.id === st.id)) this.refreshEstate();
+      };
       net.onLeave = (id) => this.remotes.remove(id);
       net.onPoke = (from, kind) => void this.poked(from, kind);
       this.net = net;
@@ -714,6 +719,13 @@ export class Game {
     this.estateInfo = null;
     this.applyPlot(0);
     ESTATE_VIEW.setNames([]);
+  }
+
+  /** Reload the estate (at most every 10 s). */
+  private refreshEstate(): void {
+    if (this.estateTimer > 110 || !this.social?.me) return;
+    this.estateTimer = 120;
+    void this.loadEstate();
   }
 
   private async loadEstate(): Promise<void> {
@@ -781,7 +793,8 @@ export class Game {
 
   /** Who can see you: the open city, your estate block, or (inside) only you. */
   private myInst(x: number, z: number): string {
-    if (this.indoor?.id === 'home') return 'home:' + (this.social?.me?.id ?? '');
+    // From the position itself (not this.indoor, which only updates while the world runs).
+    if (interiorAt(x, z)?.id === 'home') return 'home:' + (this.social?.me?.id ?? '');
     if (this.estateInfo && inEstate(x, z, 2)) return 'estate:' + this.estateInfo.block;
     return '';
   }
@@ -806,12 +819,12 @@ export class Game {
     const me = this.netState();
     this.net?.update(dt, me);
     this.remotes.update(dt, me ? { x: me.x, z: me.z, inst: me.inst } : null);
-    // New neighbours move in: refresh the estate every couple of minutes while you're around it.
+    // New neighbours move in: refresh when you walk into the estate, and every couple of minutes while there.
+    const near = !!me && inEstate(me.x, me.z, 40);
+    if (near && !this.nearEstate) this.refreshEstate();
+    this.nearEstate = near;
     this.estateTimer -= dt;
-    if (this.estateTimer <= 0 && this.estateInfo && me && inEstate(me.x, me.z, 40)) {
-      this.estateTimer = 120;
-      void this.loadEstate();
-    }
+    if (this.estateTimer <= 0 && near) this.refreshEstate();
     this.updateCard(dt);
   }
 
@@ -1457,7 +1470,9 @@ export class Game {
 
   // ------------------------------------------------------------------ loop
   private tick(): void {
-    const dt = Math.min(this.clock.getDelta(), 0.05);
+    // Gameplay steps are capped for stability; networking uses real time so slow devices still send on schedule.
+    const realDt = Math.min(this.clock.getDelta(), 2);
+    const dt = Math.min(realDt, 0.05);
     this.time += dt;
     this.input.update();
     document.body.classList.toggle('playing', this.state === 'play' || this.state === 'dialogue');
@@ -1501,7 +1516,7 @@ export class Game {
         break;
     }
     if (this.state !== 'play') this.aimId = null;
-    if (this.state !== 'loading') this.updatePlayers(dt);
+    if (this.state !== 'loading') this.updatePlayers(realDt);
     if (this.state === 'customize') {
       this.customizer.update(dt, window.innerWidth, window.innerHeight);
       this.renderer.render(this.customizer.scene, this.customizer.camera);

@@ -124,6 +124,32 @@ describe('WorldNet', () => {
   });
 });
 
+describe('moving between squares', () => {
+  it('tells the old square you left, with where you went', () => {
+    const f = fakeTransport();
+    const net = new WorldNet(f.t, 'me');
+    net.update(0.016, me({ x: 10, z: 10 }));
+    net.update(0.5, me({ x: 1476, z: 255 })); // walked into a house far away
+    const bye = f.sent.find((m) => m.event === 'bye')!;
+    expect(bye).toEqual({ topic: cellKey(0, 0), event: 'bye', payload: { i: 'me', to: cellKey(7, 1) } });
+    expect(f.joined.has(cellKey(0, 0))).toBe(false);
+    expect(f.joined.has(cellKey(7, 1))).toBe(true);
+  });
+
+  it('drops a player who left for a square we cannot hear, keeps one we can', () => {
+    const f = fakeTransport();
+    const net = new WorldNet(f.t, 'me');
+    const left: string[] = [];
+    net.onLeave = (id) => left.push(id);
+    net.update(0.016, me({ x: 10, z: 10 }));
+    const cell = f.joined.get(cellKey(0, 0))!;
+    cell('bye', { i: 'amaka', to: cellKey(1, 0) }); // next door: we still listen there
+    cell('bye', { i: 'tunde', to: cellKey(7, 1) }); // far away
+    cell('bye', { i: 'bola' }); // left the game
+    expect(left).toEqual(['tunde', 'bola']);
+  });
+});
+
 describe('estate houses', () => {
   it('plot 0 is the original house, and every plot has its own door', () => {
     expect(PLOTS).toHaveLength(PLOTS_PER_BLOCK);

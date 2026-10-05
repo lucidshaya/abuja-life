@@ -178,8 +178,10 @@ export class WorldNet {
       const s = parseState(p);
       if (s) this.onState(s);
     } else if (event === 'bye') {
+      // "to" = the square they moved into: if we listen there too, we'll keep getting their updates.
       const id = str(p.i, 64);
-      if (id) this.onLeave(id);
+      const to = str(p.to, 32);
+      if (id && !(to && this.cells.has(to))) this.onLeave(id);
     } else if (event === 'hi') {
       // Someone just arrived nearby: send them our full state soon.
       this.wantLook = true;
@@ -196,6 +198,11 @@ export class WorldNet {
       return;
     }
     const want = new Set(cellsAround(me.x, me.z));
+    const { cx, cz } = cellOf(me.x, me.z);
+    const home = cellKey(cx, cz);
+    const moved = home !== this.home;
+    // Moving to another square (walking, a door, fast travel): tell the old one, before leaving it.
+    if (moved && this.home) this.t.send(this.home, 'bye', { i: this.myId, to: home });
     for (const c of [...this.cells]) {
       if (!want.has(c)) {
         this.t.leave(c);
@@ -207,9 +214,6 @@ export class WorldNet {
       this.cells.add(c);
       this.t.join(c, this.onCell, () => this.t.send(c, 'hi', { i: this.myId }));
     }
-    const { cx, cz } = cellOf(me.x, me.z);
-    const home = cellKey(cx, cz);
-    const moved = home !== this.home;
     this.home = home;
     const key = JSON.stringify(me.look);
     const lookChanged = key !== this.lookKey;

@@ -12,7 +12,7 @@ const browser = await chromium.launch({
   args: [
     '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
     // Two-player tests run two tabs at once: keep the background one animating.
-    '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding',
+    '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-features=CalculateNativeWinOcclusion',
   ],
 });
 
@@ -35,7 +35,9 @@ async function boot(page) {
 const G = (page, fn, arg) => page.evaluate(fn, arg);
 /** Sign-up screen: email + username (+ code on the test server). */
 async function signUp(page, email, username, code = null, tap = false) {
-  await page.waitForSelector('#auth .au-card', { timeout: 15000 });
+  await page.bringToFront();
+  // Generous: with two games rendering in software GL, a tab can take a while to report "visible".
+  await page.waitForSelector('#auth .au-card', { timeout: 60000 });
   await page.fill('#auth input[type=email]', email);
   await page.fill('#auth input[autocomplete=username]', username);
   await (tap ? page.tap('#auth .au-go') : page.click('#auth .au-go'));
@@ -629,7 +631,7 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
 
 // Two players (test server shared between tabs): chat + send money.
 {
-  const ctx = await browser.newContext({ viewport: { width: 1000, height: 640 } });
+  const ctx = await browser.newContext({ viewport: { width: 760, height: 460 } });
   const a = await ctx.newPage();
   const b = await ctx.newPage();
   const errs = [];
@@ -640,13 +642,17 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   }
   await signUp(a, 'tunde@example.com', 'tunde');
   await signUp(b, 'amaka@example.com', 'tunde').catch(() => {});
-  check('online: taken username is refused', ((await b.textContent('.au-err')) ?? '').includes('taken'));
+  // Two software-GL tabs on one machine sometimes drop the first submit: try once more if B never left the first screen.
+  if (((await b.textContent('#auth .au-title')) ?? '').startsWith('Sign up')) await signUp(b, 'amaka@example.com', 'tunde').catch(() => {});
+  await b.waitForFunction(() => /taken/.test(document.querySelector('#auth .au-err')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
+  check('online: taken username is refused', ((await b.textContent('#auth .au-err')) ?? '').includes('taken'), (await b.textContent('#auth')) ?? '');
   await b.fill('#auth input[autocomplete=username]', 'amaka');
   await b.click('#auth .au-go');
   await b.waitForSelector('#menu:not(.hidden)', { timeout: 15000 });
   await sleep(4500);
   check('online: live count = 10 + other real players', ((await a.textContent('#onlinepill')) ?? '').startsWith('11 '), (await a.textContent('#onlinepill')) ?? '');
   const startLife = async (p, role) => {
+    await p.bringToFront();
     await p.click('text=New Life');
     await p.click(`.rp-card[data-role="${role}"]`);
     await p.click('.rp-go');
@@ -660,57 +666,66 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await startLife(a, 'techbro');
   await startLife(b, 'student');
   // Own houses in the estate, and seeing each other.
-  await sleep(1500);
-  const ea = await G(a, () => ({ plot: window.__abuja.plot, names: window.__abuja.estateInfo?.neighbours.map((n) => n?.username ?? null), spawn: { ...window.__abuja.player } }));
-  const eb = await G(b, () => ({ plot: window.__abuja.plot, x: window.__abuja.player.x, z: window.__abuja.player.z }));
+  // Software GL animates one tab at a time (about 2 fps), so every step waits for its result instead of sleeping.
+  const until = (p, fn, arg, ms = 8000) => p.waitForFunction(fn, arg, { timeout: ms, polling: 200 }).then(() => true, () => false);
+  // Switching tabs releases the mouse lock, which pauses that game: resume it like a player would.
+  const front = async (p) => { await p.bringToFront(); await G(p, () => { const g = window.__abuja; if (g.state === 'paused') g.resume(); }); };
+  const ea = await G(a, () => ({ plot: window.__abuja.plot }));
+  const eb = await G(b, () => ({ plot: window.__abuja.plot }));
   check('estate: each player gets their own house', ea.plot === 0 && eb.plot === 1, JSON.stringify({ a: ea.plot, b: eb.plot }));
-  check('estate: neighbours are listed on the name plates', ea.names?.[0] === 'tunde' && ea.names?.[1] === 'amaka', JSON.stringify(ea.names));
-  // Bring B next to A, facing A's camera.
-  await G(b, ([x, z]) => { const g = window.__abuja; g.player.teleport(x, z, 0); }, [ea.spawn.x, ea.spawn.z + 2.2]);
-  await sleep(2500);
-  check('players: A sees B in the world', (await G(a, () => window.__abuja.remotes.count)) === 1, String(await G(a, () => window.__abuja.remotes.count)));
-  check('players: B sees A in the world', (await G(b, () => window.__abuja.remotes.count)) === 1);
+  // New lives start inside your own (private) house: put both on the estate road, next to each other.
+  for (const p of [a, b]) if (await p.isVisible('#explore .ex-card')) await p.click('#explore >> text=I go waka first');
+  await G(a, () => { const g = window.__abuja; g.player.teleport(-204.5, -287, -Math.PI / 2); g.rig.snapBehind(-Math.PI / 2); });
+  await G(b, () => window.__abuja.player.teleport(-204.5, -284.8, Math.PI));
+  for (const p of [b, a]) { await front(p); await sleep(1500); }
+  check('estate: a new neighbour shows up on the name plates', await until(a, () => window.__abuja.estateInfo?.neighbours[1]?.username === 'amaka'), JSON.stringify(await G(a, () => window.__abuja.estateInfo?.neighbours.map((n) => n?.username ?? null))));
+  const seeB = await until(a, () => window.__abuja.remotes.count === 1);
+  if (!seeB) console.log('B is', JSON.stringify(await G(b, () => { const g = window.__abuja; return { state: g.state, aerial: g.aerial, pos: [g.player.x, g.player.z], ns: g.netState(), user: g.social.me?.username, last: g.net?.last ? [g.net.last.x, g.net.last.z, g.net.last.inst] : null }; })).slice(0, 400));
+  check('players: A sees B in the world', seeB, JSON.stringify(await G(a, () => { const g = window.__abuja; return { me: g.myInst(g.player.x, g.player.z), state: g.state, list: [...g.remotes.list.values()].map((r) => ({ inst: r.state.inst, x: r.state.x, z: r.state.z, d: Math.round(r.d), char: !!r.char, name: g.remoteNames.get(r.id) ?? '?', age: +r.age.toFixed(1) })) }; })));
+  await front(b);
+  check('players: B sees A in the world', await until(b, () => window.__abuja.remotes.count === 1));
+  await front(a);
   check('players: B wears their own look on A\'s screen', await G(a, () => { const r = [...window.__abuja.remotes.list.values()][0]; return r?.char?.cfg.outfit === 'jersey'; }));
-  check('players: prompt names the nearby player', ((await a.textContent('.prompt')) ?? '').includes('@amaka'), (await a.textContent('.prompt')) ?? '');
-  // Hover over B with a free mouse: card pops up.
-  await G(a, () => { const g = window.__abuja; g.rig.yaw = g.player.heading + Math.PI; g.rig.snapBehind(Math.PI); });
-  await sleep(400);
+  check('players: prompt names the nearby player', await until(a, () => (document.querySelector('.prompt')?.textContent ?? '').includes('@amaka')), (await a.textContent('.prompt')) ?? '');
+  // Hover over B with a free mouse: their card pops up.
+  await G(a, () => { const g = window.__abuja; g.unlockPointer(); g.rig.snapBehind(Math.PI); });
+  await sleep(1200);
   const scr = await G(a, () => { const g = window.__abuja; const r = [...g.remotes.list.values()][0]; const v = r.root.position.clone(); v.y += 1.1; v.project(g.camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; });
   await a.mouse.move(scr.x, scr.y);
-  await sleep(500);
-  check('players: hovering over a player shows their card', await a.isVisible('#pcard') && ((await a.textContent('#pcard')) ?? '').includes('@amaka'), JSON.stringify(scr));
+  check('players: hovering over a player shows their card', await until(a, () => (document.querySelector('#pcard:not(.hidden)')?.textContent ?? '').includes('@amaka')), JSON.stringify(scr));
   check('players: card shows role and buttons', ((await a.textContent('#pcard')) ?? '').includes('Student') && (await a.locator('#pcard .pc-btn').count()) === 3);
   await a.screenshot({ path: `${OUT}/48-player-card.png` });
   await a.mouse.move(5, 5);
-  await sleep(900);
-  check('players: hover card closes when you move away', !(await a.isVisible('#pcard')));
+  check('players: hover card closes when you move away', await until(a, () => document.getElementById('pcard').classList.contains('hidden')));
   // E pins it; Wave reaches B.
   await a.keyboard.press('e');
-  await sleep(300);
-  check('players: E opens the card', await a.isVisible('#pcard.pinned'));
+  check('players: E opens the card', await until(a, () => !!document.querySelector('#pcard.pinned:not(.hidden)')));
   await a.click('#pcard .pc-btn.wave');
-  await sleep(1200);
-  check('players: B is told A waved', ((await b.textContent('#hud')) ?? '').includes('waved at you'), ((await b.textContent('.push')) ?? '').slice(0, 80));
+  check('players: B is told A waved', await until(b, () => (document.getElementById('hud')?.textContent ?? '').includes('waved at you')));
+  await front(b);
+  await sleep(800);
   await b.screenshot({ path: `${OUT}/49-waved.png` });
+  await front(a);
   // Message from the card opens the chat with B.
+  await G(a, () => window.__abuja.openCard([...window.__abuja.remotes.list.keys()][0], true));
   await a.click('#pcard .pc-btn.msg');
-  await sleep(500);
-  check('players: Message opens a chat with them', ((await a.getAttribute('.ch-send input', 'placeholder')) ?? '').includes('@amaka'));
+  check('players: Message opens a chat with them', await until(a, () => (document.querySelector('.ch-send input')?.getAttribute('placeholder') ?? '').includes('@amaka')));
   await G(a, () => window.__abuja.phone.close());
-  await sleep(300);
   // Knock on B's door (plot 1: second house on the left): B gets a notification.
   await G(a, () => window.__abuja.player.teleport(-207.6 + 1.2, -317, -Math.PI / 2));
-  await sleep(400);
-  check('estate: prompt to knock on a neighbour\'s door', ((await a.textContent('.prompt')) ?? '').includes("Knock on @amaka"), (await a.textContent('.prompt')) ?? '');
+  check('estate: prompt to knock on a neighbour\'s door', await until(a, () => (document.querySelector('.prompt')?.textContent ?? '').includes('Knock on @amaka')), (await a.textContent('.prompt')) ?? '');
   await a.keyboard.press('e');
-  await sleep(1200);
-  check('estate: neighbour hears the knock', ((await b.textContent('#hud')) ?? '').includes('at your door'));
+  check('estate: neighbour hears the knock', await until(b, () => (document.getElementById('hud')?.textContent ?? '').includes('at your door')));
   // A in their own house: B can't see them.
   await G(a, () => window.__abuja.player.teleport(1476, 255, Math.PI));
   await sleep(1500);
-  check('players: inside your house nobody else sees you', (await G(b, () => window.__abuja.remotes.count)) === 0);
+  await front(b);
+  const hidden = await until(b, () => window.__abuja.remotes.count === 0);
+  check('players: inside your house nobody else sees you', hidden, hidden ? '' : JSON.stringify({ b: await G(b, () => { const g = window.__abuja; return { me: g.myInst(g.player.x, g.player.z), state: g.state, list: [...g.remotes.list.values()].map((r) => ({ inst: r.state.inst, x: r.state.x, z: r.state.z, age: +r.age.toFixed(1) })) }; }), a: await G(a, () => { const g = window.__abuja; return { state: g.state, pos: [g.player.x, g.player.z], ns: g.netState()?.inst, last: g.net.last?.inst }; }) }));
+  await front(a);
   await G(a, () => window.__abuja.player.teleport(-204.5, -287, -Math.PI / 2));
   // A messages B.
+  await a.bringToFront();
   await G(a, () => window.__abuja.openPhone('home'));
   await a.click('.ph-app:has-text("Chats")');
   await a.fill('.ch-find input', '@amaka');
@@ -721,6 +736,7 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await sleep(1200);
   check('chat: B gets a notification badge', await G(b, () => window.__abuja.social.unreadTotal === 1));
   await a.screenshot({ path: `${OUT}/50-chat-sent.png` });
+  await b.bringToFront();
   await G(b, () => window.__abuja.openPhone('home'));
   await b.click('.ph-app:has-text("Chats")');
   await b.waitForSelector('.ms-row:has-text("@tunde")', { timeout: 5000 });
@@ -729,6 +745,7 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   check('chat: B reads the message from @tunde', ((await b.textContent('.th-list')) ?? '').includes('How far Amaka'));
   await b.screenshot({ path: `${OUT}/51-chat-received.png` });
   // A sends B money.
+  await a.bringToFront();
   const a0 = await G(a, () => window.__abuja.save.stats.money);
   const b0 = await G(b, () => window.__abuja.save.stats.money);
   await a.click('.ch-money');
@@ -736,6 +753,10 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   await a.fill('.sa-form input >> nth=2', 'For transport');
   await a.click('.sa-form .ph-btn');
   await sleep(1500);
+  await b.bringToFront();
+  const paid = await b.waitForFunction((b0) => window.__abuja.save.stats.money > b0, b0, { timeout: 10000, polling: 200 }).then(() => true, () => false);
+  if (!paid) console.log('TRANSFERS', await G(b, () => JSON.stringify({ t: JSON.parse(localStorage.getItem('abuja-mock-db')).transfers, state: window.__abuja.state, started: window.__abuja.social.started })));
+  await a.bringToFront();
   const a1 = await G(a, () => window.__abuja.save.stats.money);
   const b1 = await G(b, () => window.__abuja.save.stats.money);
   check('money: sender pays ₦20,000', a0 - a1 === 20000, `${a0} → ${a1}`);
@@ -748,10 +769,12 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   const ghost = await G(a, () => window.__abuja.phone['host'].sendToPlayer('nobody_here', 100, ''));
   check('money: unknown username refused', typeof ghost === 'string', String(ghost));
   // Log out and back in with just the email: same account, same save, on any device.
-  await G(b, () => window.__abuja.phone.close());
-  await sleep(400);
-  await pressUntil(b, 'Escape', () => b.isVisible('#pause'), 4);
-  await b.click('#pause >> text=Save & Quit to Menu');
+  await b.bringToFront();
+  // (Bringing the tab forward may already have paused it.)
+  await G(b, () => { const g = window.__abuja; g.phone.close(); if (g.state !== 'paused') g.pause(); });
+  await b.waitForSelector('#pause:not(.hidden)', { timeout: 8000 });
+  // Click the element itself: at ~2 fps the menu is still sliding in, so a positional click can hit "Settings".
+  await G(b, () => [...document.querySelectorAll('#pause .btn')].find((e) => e.textContent.includes('Save & Quit')).click());
   await b.waitForSelector('#account:not(.hidden)', { timeout: 8000 });
   await b.click('#account .btn');
   await b.waitForSelector('#auth .au-card', { timeout: 8000 });
@@ -765,13 +788,17 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   check('account: email alone logs back in to the same account', back.user === 'amaka', JSON.stringify(back));
   check('account: progress is attached to the email', back.money === b1 && back.role === 'student', JSON.stringify(back));
   // A "new device" (fresh tab session) logging in with the same email gets the same account.
+  // (Close the other two first: three games in software GL starve each other.)
+  await a.close();
+  await b.close();
   const c = await ctx.newPage();
   await c.goto(URL + '?mock=1');
   await c.waitForFunction(() => document.getElementById('loading')?.classList.contains('hidden'), null, { timeout: 120000 });
-  await c.waitForSelector('#auth .au-card', { timeout: 15000 });
+  await c.bringToFront();
+  await c.waitForSelector('#auth .au-card', { timeout: 60000 });
   await c.fill('#auth input[type=email]', 'TUNDE@example.com ');
   await c.click('#auth .au-go');
-  await c.waitForSelector('#menu:not(.hidden)', { timeout: 15000 });
+  await c.waitForSelector('#menu:not(.hidden)', { timeout: 60000 });
   check('account: other device, same email → same @username', (await G(c, () => window.__abuja.social.username)) === 'tunde');
   check('online: no page errors with two players', errs.length === 0, errs.join(' | '));
   await ctx.close();

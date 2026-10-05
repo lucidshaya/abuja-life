@@ -231,7 +231,11 @@ export class MockBackend implements OnlineBackend {
       const me = this.meId();
       const d = e.data as { type: string; m?: ChatMsg; toId?: string; tab?: string };
       if (d.type === 'message' && d.m && d.m.toId === me) h.message(d.m);
-      if (d.type === 'transfer' && d.toId === me) h.transfer();
+      if (d.type === 'transfer' && d.toId === me) {
+        // localStorage can reach this tab after the broadcast does: look again shortly after.
+        h.transfer();
+        window.setTimeout(h.transfer, 800);
+      }
     });
   }
   presence(onCount: (n: number) => void): void {
