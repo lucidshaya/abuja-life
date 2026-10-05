@@ -1,3 +1,7 @@
 node_modules
 dist
 e2e-shots
+
+.env
+.env.local
+.env.*.local

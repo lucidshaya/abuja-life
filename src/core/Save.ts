@@ -41,6 +41,8 @@ export interface SaveData {
   home: HomeState;
   /** Waza (vapes) in stock to sell. */
   waza: number;
+  /** Account id this save belongs to. */
+  owner: string | null;
 }
 
 export const SAVE_KEY = 'abuja-life-save-v1';
@@ -65,6 +67,7 @@ export function newSave(character: CharacterConfig = defaultCharacter()): SaveDa
     lastWorkAbs: -100,
     home: newHome(),
     waza: 0,
+    owner: null,
   };
 }
 
@@ -110,6 +113,7 @@ export function parseSave(raw: string | null): SaveData | null {
     lastWorkAbs: num(o.lastWorkAbs, -100),
     home: parseHome(o.home, Math.max(1, Math.floor(num(o.day, 1))) * 24 + num(o.hour, 9)),
     waza: Math.max(0, Math.floor(num(o.waza, 0))),
+    owner: typeof o.owner === 'string' ? o.owner : null,
     settings: {
       quality: (['auto', 'low', 'medium', 'high'] as const).includes(s.quality) ? s.quality : 'auto',
       sensitivity: Math.min(3, Math.max(0.2, num(s.sensitivity, 1))),
