@@ -773,3 +773,33 @@ body.in-menu #onlinepill { display: flex !important; }
 body.in-menu #account:not(.hidden) { display: flex !important; }
 #account { position: fixed; z-index: 38; right: calc(14px + var(--safe-r)); bottom: calc(12px + var(--safe-b)); display: flex; align-items: center; gap: 8px; background: var(--glass); border: 1px solid var(--line); padding: 5px 6px 5px 12px; border-radius: 99px; }
 .ac-name { font: 800 14px var(--head); color: var(--gold); }
+
+/* ---------- Other players: hover / tap card ---------- */
+.pc {
+  position: fixed; z-index: 44; width: 290px; padding: 14px 14px 12px; border-radius: 18px; pointer-events: auto;
+  background: var(--glass-2); border: 1px solid var(--line); box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5);
+  animation: pcIn 0.18s ease-out both; user-select: none;
+}
+.pc.pinned { border-color: rgba(124, 242, 154, 0.55); }
+@keyframes pcIn { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
+.pc-x { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.1); }
+.pc-head { display: flex; align-items: center; gap: 10px; padding-right: 30px; }
+.pc-av { flex: none; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 800 16px var(--head); color: #fff; border: 2px solid rgba(255, 255, 255, 0.4); }
+.pc-who { display: flex; flex-direction: column; min-width: 0; }
+.pc-name { font: 800 17px var(--head); color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-role { font-size: 13px; color: var(--gold); font-weight: 700; }
+.pc-sub { margin: 8px 0 10px; font-size: 12.5px; color: rgba(255, 248, 232, 0.75); }
+.pc-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pc-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px; min-height: 58px; border-radius: 12px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.08); font: 700 12.5px var(--body);
+}
+.pc-btn:hover, .pc-btn:focus-visible { background: rgba(255, 255, 255, 0.16); outline: none; }
+.pc-btn:disabled { opacity: 0.55; cursor: default; }
+.pc-btn.msg { background: rgba(31, 170, 89, 0.28); border-color: rgba(31, 170, 89, 0.6); }
+.pc-btn.money { background: rgba(22, 180, 100, 0.18); }
+.pc-ic { font-size: 19px; line-height: 1; font-weight: 800; }
+body.touch-mode .pc {
+  left: 50% !important; top: auto !important; bottom: calc(12px + var(--safe-b)); transform: translateX(-50%);
+  width: min(420px, calc(100vw - 24px)); animation: none;
+}

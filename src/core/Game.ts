@@ -33,15 +33,18 @@ import { buildNile } from '../world/locations/Nile';
 import { buildPark } from '../world/locations/Park';
 import { buildCage, buildGuzape } from '../world/locations/Small';
 import { ABUJA2_QUICK, buildAbuja2 } from '../world/locations/Abuja2';
-import { HOME_LIGHTS, buildEstate } from '../world/locations/Estate';
+import { ESTATE_VIEW, HOME_LIGHTS, buildEstate } from '../world/locations/Estate';
 import { buildWorkspaces } from '../world/locations/Workspaces';
 import { HOUSE_MESHES, buildHouse } from '../world/locations/HouseInterior';
 import { HouseShop } from '../ui/HouseShop';
 import { seen, showExplore, showTutorial } from '../ui/Onboarding';
 import { AuthScreen } from '../ui/AuthScreen';
-import { createBackend, type Me } from '../online';
+import { createBackend, type EstateInfo, type Me } from '../online';
+import { WorldNet, type LocalState, type NetPose } from '../online/WorldNet';
+import { RemotePlayers } from '../world/RemotePlayers';
+import { PlayerCard } from '../ui/PlayerCard';
 import { Social } from '../online/Social';
-import { ESTATE, ESTATE_DUES, FURNITURE, TOKENS, homeDark, inEstate, newHome, powerOut, type Furniture, unitsFor, useUnits, weekOf, weeksOwed } from '../player/Home';
+import { ESTATE, ESTATE_DUES, FURNITURE, PLOTS, TOKENS, homeDark, inEstate, newHome, powerOut, type Furniture, unitsFor, useHousePlot, useUnits, weekOf, weeksOwed } from '../player/Home';
 import { TravelMenu, type TravelChoice, type TravelMode } from '../ui/TravelMenu';
 import { Phone } from '../ui/Phone';
 import { BILLS, FLAG_TEXTS, TAXI_FARE, TRANSFER_FEE, groupText, morningText, requestReply, transferOp, uid, type Contact } from '../phone/PhoneData';
@@ -178,6 +181,23 @@ export class Game {
   private phoneBtn!: HTMLButtonElement;
   private travelT = 0;
   private aerial = false;
+  // ---- Other players (online) ----
+  private remotes = new RemotePlayers();
+  private net: WorldNet | null = null;
+  private card!: PlayerCard;
+  private estateInfo: EstateInfo | null = null;
+  private estateTimer = 0;
+  private plot = 0;
+  /** The compound car spot that moves with your house. */
+  private homeCarSpot = CAR_SPOTS.find((c) => c.x === PLOTS[0].car.x && c.z === PLOTS[0].car.z) ?? null;
+  private remoteNames = new Map<string, string | null>();
+  private namePending = new Set<string>();
+  private mouse = { x: 0, y: 0, in: false };
+  private ray = new THREE.Raycaster();
+  /** Player under the mouse (free cursor) or the screen centre (locked). */
+  private aimId: string | null = null;
+  private cardGrace = 0;
+  private cardTimer = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.touch = isTouchDevice();
@@ -242,6 +262,7 @@ export class Game {
     this.scene.add(this.playerChar.root);
     this.player = new PlayerController(SPAWN.x, SPAWN.z, SPAWN.heading, this.playerChar);
     this.setupUi(city.buildings);
+    this.setupPlayers();
     this.applySettings(this.save.settings);
     // Try to start the soundtrack straight away (works where the browser allows autoplay).
     this.audio.unlock();
@@ -479,8 +500,16 @@ export class Game {
       window.setTimeout(() => this.syncSoundHint(), 300);
     };
     for (const ev of ['pointerdown', 'keydown', 'touchstart', 'click'] as const) window.addEventListener(ev, unlock, { passive: true });
-    this.canvas.addEventListener('click', () => {
-      if (this.state === 'play' && this.input.device !== 'touch') this.input.requestPointerLock();
+    this.canvas.addEventListener('click', (e) => {
+      if (this.state !== 'play' || this.input.device === 'touch') return;
+      // Click on another player: open their card (free mouse = under the cursor, locked = screen centre).
+      const id = this.input.pointerLocked ? this.aimId : this.pickAt(e.clientX, e.clientY);
+      if (id) {
+        this.openCard(id, true);
+        return;
+      }
+      if (this.card.open) this.card.hide();
+      this.input.requestPointerLock();
     });
     document.addEventListener('pointerlockchange', () => {
       if (this.input.pointerLocked) return;
@@ -495,6 +524,8 @@ export class Game {
         this.persist();
         this.pushCloud(true);
       }
+      // Tell nearby players we left (the game stops while the tab is hidden).
+      if (document.visibilityState === 'hidden') this.net?.update(0, null);
     });
     $('rotate-dismiss').addEventListener('click', () => document.body.classList.add('rotate-ok'));
   }
@@ -537,6 +568,7 @@ export class Game {
   private signedIn(me: Me): void {
     this.social.me = me;
     this.social.start();
+    this.joinWorld(me);
     void this.pullCloudSave(me).then(() => this.goMenu());
   }
 
@@ -597,6 +629,7 @@ export class Game {
   private async signOut(): Promise<void> {
     this.persist();
     this.pushCloud(true);
+    this.leaveWorld();
     await this.social.signOut();
     // Your progress stays on your account; clear it from this device.
     const settings = this.save.settings;
@@ -624,6 +657,252 @@ export class Game {
     const n = this.social?.online ?? 10;
     $('onlinepill').textContent = `${n} players online`;
     this.hud.setOnline(n);
+  }
+
+  // ------------------------------------------------------- other players
+  private setupPlayers(): void {
+    this.scene.add(this.remotes.group);
+    this.remotes.detail = this.tier === 'low' ? 'low' : 'high';
+    this.remotes.name = (id) => this.remoteName(id);
+    this.card = new PlayerCard();
+    this.card.onClick = () => this.audio.click();
+    const ref = (id: string) => ({ id, username: this.remoteName(id) ?? 'player' });
+    // Open the phone first so closing the card doesn't grab the mouse again.
+    this.card.onMessage = (id) => {
+      this.openPhone();
+      this.phone.openChatWith(ref(id));
+      this.card.hide();
+    };
+    this.card.onMoney = (id) => {
+      this.openPhone();
+      this.phone.openSendTo(ref(id).username);
+      this.card.hide();
+    };
+    this.card.onWave = (id) => this.wave(id);
+    this.card.onClose = () => {
+      if (this.state === 'play') this.lockPointer();
+    };
+    this.canvas.addEventListener('mousemove', (e) => (this.mouse = { x: e.clientX, y: e.clientY, in: true }));
+    this.canvas.addEventListener('mouseleave', () => (this.mouse.in = false));
+    this.touchUi.onTap = (x, y) => {
+      if (this.state !== 'play') return;
+      const id = this.pickAt(x, y);
+      if (id) this.openCard(id, true);
+      else this.card.hide();
+    };
+  }
+
+  /** Signed in: show other players and find your house. */
+  private joinWorld(me: Me): void {
+    this.leaveWorld();
+    const t = this.social.backend.transport();
+    if (t) {
+      const net = new WorldNet(t, me.id);
+      net.onState = (st) => this.remotes.apply(st);
+      net.onLeave = (id) => this.remotes.remove(id);
+      net.onPoke = (from, kind) => void this.poked(from, kind);
+      this.net = net;
+    }
+    void this.loadEstate();
+  }
+
+  private leaveWorld(): void {
+    this.net?.stop();
+    this.net = null;
+    this.remotes.clear();
+    this.card?.hide();
+    this.estateInfo = null;
+    this.applyPlot(0);
+    ESTATE_VIEW.setNames([]);
+  }
+
+  private async loadEstate(): Promise<void> {
+    const me = this.social.me;
+    const info = await this.social.backend.estate().catch(() => null);
+    if (!info || this.social.me !== me) return;
+    this.estateInfo = info;
+    for (const n of info.neighbours) if (n) this.remoteNames.set(n.id, n.username);
+    this.applyPlot(info.plot);
+    ESTATE_VIEW.setNames(info.neighbours.map((n) => n?.username ?? null));
+  }
+
+  /** Make plot `i` your house: door, meter, spawn, car, map pin and the estate's look. */
+  private applyPlot(i: number): void {
+    const p = useHousePlot(i);
+    const moved = i !== this.plot;
+    this.plot = i;
+    ESTATE_VIEW.setMine(i);
+    const door = NPC_SPOTS.find((n) => n.id === 'estate-door');
+    const meter = NPC_SPOTS.find((n) => n.id === 'estate-meter');
+    if (door) Object.assign(door, p.door);
+    if (meter) Object.assign(meter, p.meter);
+    const out = PORTALS.find((pt) => pt.id === 'home-out');
+    if (out) out.to = { x: p.spawn.x, z: p.spawn.z, heading: (-p.side * Math.PI) / 2 };
+    const zone = this.quickZones.find((z) => z.id === 'estate');
+    if (zone) zone.items = [
+      standBy('estate-door', 'Your house (sleep, change clothes)', '🏠', 2.4),
+      standBy('estate-meter', 'Prepaid meter (NEPA units)', '⚡', 2.4),
+      standBy('estate-manager', 'Estate office (service charge)', '🧾'),
+      standBy('estate-gate', 'Gate security', '💂🏾'),
+      { label: 'Your car', icon: '🚗', x: p.car.x - p.side * 2.4, z: p.car.z, heading: (p.side * Math.PI) / 2 },
+    ];
+    const pin = this.fullMap?.places.find((pl) => pl.name.startsWith('Your house'));
+    if (pin) {
+      pin.x = p.x;
+      pin.z = p.z;
+    }
+    // Your compound car moves to your new compound (unless you're out driving it).
+    const spot = this.homeCarSpot;
+    if (spot && moved) {
+      const car = this.cars[CAR_SPOTS.indexOf(spot)];
+      const parked = car && car !== this.car && Math.hypot(car.x - spot.x, car.z - spot.z) < 3;
+      Object.assign(spot, p.car);
+      if (parked) {
+        car.x = spot.x;
+        car.z = spot.z;
+        car.heading = spot.heading;
+        car.sync();
+      }
+    }
+  }
+
+  /** "@username" for an id, looked up once (null until known; unknown ids stay hidden). */
+  private remoteName(id: string): string | null {
+    if (this.remoteNames.has(id)) return this.remoteNames.get(id)!;
+    if (!this.namePending.has(id)) {
+      this.namePending.add(id);
+      void this.social.backend.profiles([id]).then(
+        (m) => this.remoteNames.set(id, m[id] ?? null),
+        () => window.setTimeout(() => this.namePending.delete(id), 5000),
+      );
+    }
+    return null;
+  }
+
+  /** Who can see you: the open city, your estate block, or (inside) only you. */
+  private myInst(x: number, z: number): string {
+    if (this.indoor?.id === 'home') return 'home:' + (this.social?.me?.id ?? '');
+    if (this.estateInfo && inEstate(x, z, 2)) return 'estate:' + this.estateInfo.block;
+    return '';
+  }
+
+  /** What other players see of you this frame (null = you're not in the world). */
+  private netState(): LocalState | null {
+    const inWorld = ['play', 'dialogue', 'phone', 'map', 'shop', 'modal', 'paused'].includes(this.state) && !this.aerial && !!this.player;
+    if (!inWorld || !this.social?.me?.username) return null;
+    const car = this.car;
+    const p = this.playerPos();
+    const pose: NetPose = car ? 'normal' : this.state === 'phone' ? 'phone' : (this.playerChar.pose as NetPose);
+    return {
+      x: p.x, y: car ? 0 : this.player.y, z: p.z, heading: p.heading,
+      speed: car ? Math.abs(car.speed) : this.player.speed, pose,
+      car: car ? `${car.model}:${car.color}` : '',
+      inst: this.myInst(p.x, p.z), role: this.save.role, look: this.save.character,
+    };
+  }
+
+  /** Per frame (any state): send/receive positions and draw other players. */
+  private updatePlayers(dt: number): void {
+    const me = this.netState();
+    this.net?.update(dt, me);
+    this.remotes.update(dt, me ? { x: me.x, z: me.z, inst: me.inst } : null);
+    // New neighbours move in: refresh the estate every couple of minutes while you're around it.
+    this.estateTimer -= dt;
+    if (this.estateTimer <= 0 && this.estateInfo && me && inEstate(me.x, me.z, 40)) {
+      this.estateTimer = 120;
+      void this.loadEstate();
+    }
+    this.updateCard(dt);
+  }
+
+  private pickAt(sx: number, sy: number, maxD = 80): string | null {
+    const ndc = new THREE.Vector2((sx / window.innerWidth) * 2 - 1, -(sy / window.innerHeight) * 2 + 1);
+    this.ray.setFromCamera(ndc, this.camera);
+    return this.remotes.pick(this.ray, maxD);
+  }
+
+  private cardInfo(id: string) {
+    const r = this.remotes.info(id);
+    const name = this.remoteName(id);
+    if (!r || !name) return null;
+    const role = roleById(r.role);
+    const p = this.playerPos();
+    const place = interiorAt(r.x, r.z)?.name ?? districtAt(r.x, r.z)?.name ?? 'FCT';
+    return { ...r, info: { id, username: name, role: role?.name ?? null, roleColor: role?.color ?? '#0f8a4b', place, dist: Math.hypot(r.x - p.x, r.z - p.z), driving: r.driving, dancing: r.dancing } };
+  }
+
+  /** Show a player's card. Pinned (click / tap / E) frees the mouse so you can press its buttons. */
+  private openCard(id: string, pinned: boolean): void {
+    const c = this.cardInfo(id);
+    if (!c) return;
+    if (pinned && this.card.id !== id) this.audio.click();
+    this.card.show(c.info, pinned);
+    this.placeCard(c);
+    if (pinned) this.unlockPointer();
+  }
+
+  private placeCard(c: { x: number; y: number; z: number }): void {
+    const v = new THREE.Vector3(c.x, c.y + 2.6, c.z).project(this.camera);
+    this.card.place(((v.x + 1) / 2) * window.innerWidth, ((1 - v.y) / 2) * window.innerHeight);
+  }
+
+  private updateCard(dt: number): void {
+    if (!this.card.open) return;
+    const playing = this.state === 'play';
+    const c = this.cardInfo(this.card.id!);
+    if (!c || !playing) {
+      this.card.hide();
+      return;
+    }
+    // A hover card follows the mouse: it closes shortly after you move off the player and the card.
+    if (!this.card.pinned) {
+      this.cardGrace = this.aimId === this.card.id || this.card.hovered ? 0.35 : this.cardGrace - dt;
+      if (this.cardGrace <= 0) {
+        this.card.hide();
+        return;
+      }
+    }
+    this.cardTimer -= dt;
+    if (this.cardTimer <= 0) {
+      this.cardTimer = 0.5;
+      this.card.show(c.info, this.card.pinned);
+    }
+    if (!this.card.hovered) this.placeCard(c);
+  }
+
+  private wave(id: string): void {
+    const name = this.remoteName(id) ?? 'player';
+    if (this.net && !this.net.poke(id, 'wave')) return;
+    this.card.waved(true);
+    window.setTimeout(() => this.card.waved(false), 4000);
+    this.hud.notify(`👋🏾 You waved at @${name}`, 'good');
+    if (!this.car) {
+      this.playerChar.pose = 'cheer';
+      window.setTimeout(() => {
+        if (this.playerChar.pose === 'cheer') this.playerChar.pose = 'normal';
+      }, 2200);
+    }
+  }
+
+  private async poked(from: string, kind: 'wave' | 'knock'): Promise<void> {
+    const name = this.remoteName(from) ?? (await this.social.nameOf(from));
+    if (!name || name === 'player') return;
+    this.remoteNames.set(from, name);
+    if (this.state === 'menu' || this.state === 'loading') return;
+    if (kind === 'wave') this.hud.push('Abuja Life', '#1faa59', '👋🏾', '@' + name, 'waved at you! Find them and wave back, or send them a message.');
+    else this.hud.push('Sunshine Court', '#8c5a2b', '🚪', `@${name} is at your door`, 'Knock knock! Your neighbour dey wait for you outside your house.');
+    this.audio.notify();
+  }
+
+  /** Near a neighbour's front door: knock (they get a notification wherever they are). */
+  private neighbourDoor(x: number, z: number): { plot: number; id: string | null; name: string | null } | null {
+    if (!inEstate(x, z)) return null;
+    for (const p of PLOTS) {
+      if (p.index === this.plot || Math.hypot(p.door.x - x, p.door.z - z) > 2.4) continue;
+      const n = this.estateInfo?.neighbours[p.index] ?? null;
+      return { plot: p.index, id: n?.id ?? null, name: n?.username ?? null };
+    }
+    return null;
   }
 
   private newGame(): void {
@@ -675,7 +954,7 @@ export class Game {
     this.addMsg('Mummy ❤️', 'My child, you don reach Abuja? Call me when you settle. Love you!', false);
     this.addMail('Abuja Life', `Welcome to Abuja, ${cfg.name}!`, `Your email address is ${playerEmail(this.social?.username ?? cfg.name, role)}.\n\nYou are now a ${role.name}. ${role.blurb}\n\n${role.salary ? `Your pay of ${naira(role.salary)} lands in your OPay account every morning at 8am.` : 'You earn money by working — go to ' + role.workplace.name + ' and open the quick actions.'}\n\nPerk: ${role.perk}`, false);
     this.addMail(role.workplace.name, role.email.welcome.subject, role.email.welcome.body, false);
-    this.addMail('Sunshine Court Estate', 'Welcome to your new house!', `Dear ${cfg.name},\n\nWelcome to ${ESTATE.name}, ${ESTATE.area}. Your house is the first one on the left after the gate.\n\n• Electricity is prepaid. Your meter has 20 units (about 3 days). Buy AEDC tokens at the meter or in OPay → Bills, or light go off.\n• Service charge is ${naira(ESTATE_DUES)} every week (Monday). Your first week is paid.\n\n— Mrs. Okon, Estate Manager`, false);
+    this.addMail('Sunshine Court Estate', 'Welcome to your new house!', `Dear ${cfg.name},\n\nWelcome to ${ESTATE.name}, ${ESTATE.area}. Your house is the one with the green roof and your name on the gate post. Your neighbours' names are on theirs.\n\n• Electricity is prepaid. Your meter has 20 units (about 3 days). Buy AEDC tokens at the meter or in OPay → Bills, or light go off.\n• Service charge is ${naira(ESTATE_DUES)} every week (Monday). Your first week is paid.\n\n— Mrs. Okon, Estate Manager`, false);
     // You wake up inside your own house.
     this.player.teleport(1476, 259, Math.PI);
     this.rig.snapBehind(Math.PI);
@@ -1221,6 +1500,8 @@ export class Game {
         this.updateWorld(dt, false);
         break;
     }
+    if (this.state !== 'play') this.aimId = null;
+    if (this.state !== 'loading') this.updatePlayers(dt);
     if (this.state === 'customize') {
       this.customizer.update(dt, window.innerWidth, window.innerHeight);
       this.renderer.render(this.customizer.scene, this.customizer.camera);
@@ -1438,7 +1719,29 @@ export class Game {
       });
       this.audio.engine(null);
       this.hud.setSpeed(null);
-      const npc = this.nearestNpc(this.player.x, this.player.z, 3.2);
+      // Another player you're looking at (or standing next to): E opens their card.
+      const other = this.aimId ?? this.remotes.nearest(this.player.x, this.player.z, 3.5);
+      const otherName = other ? this.remoteName(other) : null;
+      if (other && otherName) {
+        prompt = { action: 'interact', text: `@${otherName} — message, send money, wave`, touch: 'Player' };
+        if (inp.wasPressed('interact')) {
+          this.openCard(other, true);
+          return;
+        }
+      }
+      const knock = prompt ? null : this.neighbourDoor(this.player.x, this.player.z);
+      if (knock) {
+        prompt = { action: 'interact', text: knock.name ? `Knock on @${knock.name}'s door` : 'TO LET — nobody lives here yet', touch: knock.name ? 'Knock' : 'Look' };
+        if (inp.wasPressed('interact')) {
+          if (knock.id && knock.name) {
+            this.audio.door();
+            this.net?.poke(knock.id, 'knock');
+            this.hud.notify(`🚪 Knock knock! @${knock.name} don hear say you dey outside.`, 'info');
+          } else this.hud.notify('This house still dey empty. A new neighbour go soon move in.', 'info');
+          return;
+        }
+      }
+      const npc = prompt ? null : this.nearestNpc(this.player.x, this.player.z, 3.2);
       const car = this.indoor ? null : this.nearestCar(this.player.x, this.player.z, 3.8);
       this.nearCarNow = !!car;
       const portal = this.nearestPortal(this.player.x, this.player.z, 2.6);
@@ -1450,14 +1753,14 @@ export class Game {
           return;
         }
       }
-      if (portal && (!npc || Math.hypot(portal.x - this.player.x, portal.z - this.player.z) < Math.hypot(npc.x - this.player.x, npc.z - this.player.z))) {
+      if (portal && !prompt && (!npc || Math.hypot(portal.x - this.player.x, portal.z - this.player.z) < Math.hypot(npc.x - this.player.x, npc.z - this.player.z))) {
         prompt = { action: 'interact', text: portal.label, touch: 'Enter' };
         if (inp.wasPressed('interact')) {
           this.usePortal(portal);
           return;
         }
       } else if (npc) prompt = { action: 'interact', text: npc.look === 'none' ? npc.name : `Talk to ${npc.name}`, touch: npc.look === 'none' ? 'Use' : 'Talk' };
-      else if (car) prompt = { action: 'vehicle', text: `Enter ${CAR_MODELS[car.model].label}`, touch: 'Enter' };
+      else if (car && !prompt) prompt = { action: 'vehicle', text: `Enter ${CAR_MODELS[car.model].label}`, touch: 'Enter' };
       if (npc && !prompt?.text.startsWith('Enter') && !prompt?.text.startsWith('Exit') && inp.wasPressed('interact')) {
         this.talkTo(npc);
         return;
@@ -1517,6 +1820,15 @@ export class Game {
       }
     }
 
+    // Hover: the player under the mouse (free cursor) or under the screen centre (mouse locked) gets a card.
+    this.aimId = null;
+    if (inp.device !== 'touch') {
+      if (inp.pointerLocked) this.aimId = this.pickAt(window.innerWidth / 2, window.innerHeight / 2, 30);
+      else if (this.mouse.in) this.aimId = this.pickAt(this.mouse.x, this.mouse.y);
+      if (this.aimId && !this.card.pinned) this.openCard(this.aimId, false);
+      this.canvas.style.cursor = !inp.pointerLocked && this.aimId ? 'pointer' : '';
+    }
+
     // HUD
     this.hud.setStats(this.save.stats.money, this.save.stats.clout, this.hour, this.day);
     this.hud.setPrompt(prompt?.action ?? null, prompt?.text ?? '');
@@ -1551,6 +1863,7 @@ export class Game {
     const m = npcMarkers((id) => this.events.cooldownLeft(id, this.playTime) <= 0);
     for (const c of this.cars) if (c !== this.car) m.push({ x: c.x, z: c.z, color: '#5aa9ff' });
     m.push({ x: ESTATE.house.x, z: ESTATE.house.z, color: '#7cf29a', label: 'H' });
+    for (const d of this.remotes.dots()) m.push({ x: d.x, z: d.z, color: '#ffd76a' });
     return m;
   }
 

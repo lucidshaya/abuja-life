@@ -9,7 +9,11 @@ mkdirSync(OUT, { recursive: true });
 const exe = process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const browser = await chromium.launch({
   executablePath: exe,
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  args: [
+    '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+    // Two-player tests run two tabs at once: keep the background one animating.
+    '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding',
+  ],
 });
 
 const results = [];
@@ -655,6 +659,57 @@ const fps = (page) => G(page, () => new Promise((res) => { let n = 0; const t0 =
   };
   await startLife(a, 'techbro');
   await startLife(b, 'student');
+  // Own houses in the estate, and seeing each other.
+  await sleep(1500);
+  const ea = await G(a, () => ({ plot: window.__abuja.plot, names: window.__abuja.estateInfo?.neighbours.map((n) => n?.username ?? null), spawn: { ...window.__abuja.player } }));
+  const eb = await G(b, () => ({ plot: window.__abuja.plot, x: window.__abuja.player.x, z: window.__abuja.player.z }));
+  check('estate: each player gets their own house', ea.plot === 0 && eb.plot === 1, JSON.stringify({ a: ea.plot, b: eb.plot }));
+  check('estate: neighbours are listed on the name plates', ea.names?.[0] === 'tunde' && ea.names?.[1] === 'amaka', JSON.stringify(ea.names));
+  // Bring B next to A, facing A's camera.
+  await G(b, ([x, z]) => { const g = window.__abuja; g.player.teleport(x, z, 0); }, [ea.spawn.x, ea.spawn.z + 2.2]);
+  await sleep(2500);
+  check('players: A sees B in the world', (await G(a, () => window.__abuja.remotes.count)) === 1, String(await G(a, () => window.__abuja.remotes.count)));
+  check('players: B sees A in the world', (await G(b, () => window.__abuja.remotes.count)) === 1);
+  check('players: B wears their own look on A\'s screen', await G(a, () => { const r = [...window.__abuja.remotes.list.values()][0]; return r?.char?.cfg.outfit === 'jersey'; }));
+  check('players: prompt names the nearby player', ((await a.textContent('.prompt')) ?? '').includes('@amaka'), (await a.textContent('.prompt')) ?? '');
+  // Hover over B with a free mouse: card pops up.
+  await G(a, () => { const g = window.__abuja; g.rig.yaw = g.player.heading + Math.PI; g.rig.snapBehind(Math.PI); });
+  await sleep(400);
+  const scr = await G(a, () => { const g = window.__abuja; const r = [...g.remotes.list.values()][0]; const v = r.root.position.clone(); v.y += 1.1; v.project(g.camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; });
+  await a.mouse.move(scr.x, scr.y);
+  await sleep(500);
+  check('players: hovering over a player shows their card', await a.isVisible('#pcard') && ((await a.textContent('#pcard')) ?? '').includes('@amaka'), JSON.stringify(scr));
+  check('players: card shows role and buttons', ((await a.textContent('#pcard')) ?? '').includes('Student') && (await a.locator('#pcard .pc-btn').count()) === 3);
+  await a.screenshot({ path: `${OUT}/48-player-card.png` });
+  await a.mouse.move(5, 5);
+  await sleep(900);
+  check('players: hover card closes when you move away', !(await a.isVisible('#pcard')));
+  // E pins it; Wave reaches B.
+  await a.keyboard.press('e');
+  await sleep(300);
+  check('players: E opens the card', await a.isVisible('#pcard.pinned'));
+  await a.click('#pcard .pc-btn.wave');
+  await sleep(1200);
+  check('players: B is told A waved', ((await b.textContent('#hud')) ?? '').includes('waved at you'), ((await b.textContent('.push')) ?? '').slice(0, 80));
+  await b.screenshot({ path: `${OUT}/49-waved.png` });
+  // Message from the card opens the chat with B.
+  await a.click('#pcard .pc-btn.msg');
+  await sleep(500);
+  check('players: Message opens a chat with them', ((await a.getAttribute('.ch-send input', 'placeholder')) ?? '').includes('@amaka'));
+  await G(a, () => window.__abuja.phone.close());
+  await sleep(300);
+  // Knock on B's door (plot 1: second house on the left): B gets a notification.
+  await G(a, () => window.__abuja.player.teleport(-207.6 + 1.2, -317, -Math.PI / 2));
+  await sleep(400);
+  check('estate: prompt to knock on a neighbour\'s door', ((await a.textContent('.prompt')) ?? '').includes("Knock on @amaka"), (await a.textContent('.prompt')) ?? '');
+  await a.keyboard.press('e');
+  await sleep(1200);
+  check('estate: neighbour hears the knock', ((await b.textContent('#hud')) ?? '').includes('at your door'));
+  // A in their own house: B can't see them.
+  await G(a, () => window.__abuja.player.teleport(1476, 255, Math.PI));
+  await sleep(1500);
+  check('players: inside your house nobody else sees you', (await G(b, () => window.__abuja.remotes.count)) === 0);
+  await G(a, () => window.__abuja.player.teleport(-204.5, -287, -Math.PI / 2));
   // A messages B.
   await G(a, () => window.__abuja.openPhone('home'));
   await a.click('.ph-app:has-text("Chats")');

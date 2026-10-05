@@ -15,6 +15,58 @@ export const ESTATE = {
   spawn: { x: -204.5, z: -287, heading: -Math.PI / 2 },
 };
 
+/** Houses in one copy of the estate. Players fill them in sign-up order: players 1–6 share block 0, 7–12 block 1… */
+export const PLOTS_PER_BLOCK = 6;
+
+export interface Plot {
+  index: number;
+  /** -1 = west of the estate road, 1 = east. */
+  side: number;
+  /** House centre. */
+  x: number;
+  z: number;
+  /** Facade (front wall) x, facing the road. */
+  front: number;
+  door: { x: number; z: number; facing: number };
+  meter: { x: number; z: number; facing: number };
+  /** Where you wake up: in front of the door, facing the house. */
+  spawn: { x: number; z: number; heading: number };
+  /** Parking pad in the compound. */
+  car: { x: number; z: number; heading: number };
+}
+
+/** The six duplexes: west side first (plot 0 = first on the left after the gate), then east. */
+export const PLOTS: Plot[] = [-1, 1].flatMap((side) =>
+  [-287, -317, -347].map((z) => {
+    const gx = -188;
+    const x = gx + side * 28;
+    const front = x - side * 8;
+    const facing = (-side * Math.PI) / 2;
+    return {
+      index: 0, side, x, z, front,
+      door: { x: front - side * 0.4, z, facing },
+      meter: { x: front - side * 0.4, z: z - 3.5, facing },
+      spawn: { x: front - side * 3.5, z, heading: (side * Math.PI) / 2 },
+      car: { x: front - side * 4, z: z - 7.6, heading: 0 },
+    };
+  }),
+).map((p, i) => ({ ...p, index: i }));
+
+/** Which block (copy of the estate) and house a player gets from their sign-up position (0-based). */
+export function plotFor(rank: number): { block: number; plot: number } {
+  const r = Math.max(0, Math.floor(rank));
+  return { block: Math.floor(r / PLOTS_PER_BLOCK), plot: r % PLOTS_PER_BLOCK };
+}
+
+/** Point the shared ESTATE house/spawn at this plot (everything else reads them from there). */
+export function useHousePlot(i: number): Plot {
+  const p = PLOTS[Math.max(0, Math.min(PLOTS.length - 1, i))];
+  ESTATE.house.x = p.x;
+  ESTATE.house.z = p.z;
+  Object.assign(ESTATE.spawn, p.spawn);
+  return p;
+}
+
 export interface HomeState {
   /** Prepaid electricity units (kWh) left on the meter. */
   units: number;

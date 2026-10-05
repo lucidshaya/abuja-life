@@ -1,15 +1,63 @@
 import type { CollisionWorld } from '../../core/Collision';
-import { ESTATE } from '../../player/Home';
+import { ESTATE, PLOTS } from '../../player/Home';
 import type { AgentSpec } from '../Crowd';
 import { Kit, THREE, newBuild, nightMat, sign, type LocationBuild } from './kit';
 
 /** Your house's window lights: the game switches them off when the prepaid meter runs out. */
 export const HOME_LIGHTS = { mat: null as THREE.MeshLambertMaterial | null };
 
+const ROOF_COLORS = [0x8c3a2b, 0x5b5f66, 0x1f3f7a];
+const MY_ROOF = 0x0f6b3a;
+
+/** Per-house parts that change with who lives where: your roof, HOME sign, meter, lit windows and name plates. */
+export const ESTATE_VIEW = {
+  windows: [] as THREE.Mesh[],
+  roofs: [] as THREE.Mesh[],
+  mineParts: [] as THREE.Group[],
+  plates: [] as { canvas: HTMLCanvasElement; tex: THREE.CanvasTexture; text: string }[],
+  otherWin: null as THREE.Material | null,
+  mine: -1,
+  /** Show plot `i` as your house. */
+  setMine(i: number): void {
+    if (i === this.mine) return;
+    this.mine = i;
+    this.windows.forEach((m, k) => (m.material = k === i && HOME_LIGHTS.mat ? HOME_LIGHTS.mat : this.otherWin!));
+    this.roofs.forEach((m, k) => (m.material as THREE.MeshLambertMaterial).color.setHex(k === i ? MY_ROOF : ROOF_COLORS[k % 3]));
+    this.mineParts.forEach((g, k) => (g.visible = k === i));
+  },
+  /** Name plates by the compound gates: "@username", or "TO LET". */
+  setNames(names: (string | null)[]): void {
+    this.plates.forEach((p, k) => {
+      const text = names[k] ? '@' + names[k] : 'TO LET';
+      if (text === p.text) return;
+      p.text = text;
+      drawPlate(p.canvas, text, k === this.mine);
+      p.tex.needsUpdate = true;
+    });
+  },
+};
+
+function drawPlate(c: HTMLCanvasElement, text: string, mine: boolean): void {
+  const x = c.getContext('2d');
+  if (!x) return;
+  x.fillStyle = mine ? '#0f6b3a' : text === 'TO LET' ? '#8c5a2b' : '#123e7c';
+  x.fillRect(0, 0, c.width, c.height);
+  x.strokeStyle = '#ffd76a';
+  x.lineWidth = 6;
+  x.strokeRect(3, 3, c.width - 6, c.height - 6);
+  x.fillStyle = '#ffffff';
+  let size = 54;
+  x.font = `bold ${size}px system-ui, sans-serif`;
+  while (x.measureText(text).width > c.width - 30 && size > 20) x.font = `bold ${(size -= 2)}px system-ui, sans-serif`;
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillText(text, c.width / 2, c.height / 2 + 2);
+}
+
 /**
  * Sunshine Court Estate, Gwarinpa: a walled estate off the expressway with a
- * gatehouse, estate office, six duplexes (yours is the first on the left)
- * and street lights.
+ * gatehouse, estate office, six duplexes (one per player in this copy of the
+ * estate, with name plates) and street lights.
  */
 export function buildEstate(world: CollisionWorld): LocationBuild {
   const b = newBuild('estate');
@@ -51,22 +99,19 @@ export function buildEstate(world: CollisionWorld): LocationBuild {
   k.box(GX + 4.6, 0, z1 - 14, 0.1, 2, 0.1, 0x777777);
   sign(g, 'NO HORNING • 10 KM/H', GX + 4.6, 2.2, z1 - 14, -Math.PI / 2, 1.8, 0.6, { bg: '#c0262d' });
 
-  // Duplexes: three plots on each side of the estate road.
+  // Duplexes: three plots on each side of the estate road. Any of them can be "yours" (see ESTATE_VIEW).
   const windows = nightMat(0xffe7a8, 0x2e4a63, 1.3);
   const homeWin = nightMat(0xfff1c4, 0x2e4a63, 1.5);
   HOME_LIGHTS.mat = homeWin;
+  ESTATE_VIEW.otherWin = windows;
   b.glowMats.push(windows, homeWin);
-  const winGeo: THREE.BufferGeometry[] = [];
-  const homeGeo: THREE.BufferGeometry[] = [];
-  const palette = [0xf3ead8, 0xe9d8b4, 0xf1e5c8, 0xdfe7ee, 0xf6e7d2, 0xe8dcc6];
-  const rows = [-287, -317, -347];
-  let n = 0;
-  for (const side of [-1, 1]) {
-    for (const zc of rows) {
-      const mine = side === -1 && zc === ESTATE.house.z;
-      const hx = GX + side * 28; // house centre
-      const front = hx - side * 8; // facade facing the road
-      const color = mine ? 0xfdf6e6 : palette[n++ % palette.length];
+  const palette = [0xfdf6e6, 0xf3ead8, 0xe9d8b4, 0xf1e5c8, 0xdfe7ee, 0xf6e7d2];
+  for (const plot of PLOTS) {
+    {
+      const { side, z: zc, x: hx, front, index: n } = plot;
+      const color = palette[n % palette.length];
+      const winGeo: THREE.BufferGeometry[] = [];
+      const mineG = new THREE.Group();
       // Compound fence with a gate gap on the road side.
       const fx0 = GX + side * 12, fx1 = GX + side * 48;
       const lo = Math.min(fx0, fx1), hi = Math.max(fx0, fx1);
@@ -79,14 +124,19 @@ export function buildEstate(world: CollisionWorld): LocationBuild {
       // Two-storey body, balcony, roof, door.
       k.box(hx, 0, zc, 16, 7, 11, color, true);
       k.box(hx, 3.4, zc, 16.4, 0.25, 11.4, 0xd9d0bc);
-      k.box(hx, 7, zc, 17, 0.5, 12, mine ? 0x0f6b3a : [0x8c3a2b, 0x5b5f66, 0x1f3f7a][n % 3]);
-      k.box(hx + side * 1, 7.5, zc, 9, 1.6, 7, mine ? 0x0f6b3a : [0x8c3a2b, 0x5b5f66, 0x1f3f7a][n % 3]);
+      const roof = new THREE.Mesh(
+        mergeAll([new THREE.BoxGeometry(17, 0.5, 12).translate(hx, 7.25, zc), new THREE.BoxGeometry(9, 1.6, 7).translate(hx + side * 1, 8.3, zc)]),
+        new THREE.MeshLambertMaterial({ color: ROOF_COLORS[n % 3] }),
+      );
+      roof.castShadow = true;
+      g.add(roof);
+      ESTATE_VIEW.roofs.push(roof);
       k.box(front - side * 0.06, 0, zc, 0.12, 2.5, 1.6, 0x5a3a24);
       k.box(front - side * 0.9, 3.6, zc + 3, 1.6, 0.15, 4, 0xd9d0bc); // balcony
       k.box(front - side * 1.65, 3.75, zc + 3, 0.08, 1, 4, 0x9aa1a8);
       k.cyl(hx - side * 4, 7.5, zc - 3, 0.9, 0.9, 1.8, 0x1a1a1a, 12); // black water tank
       // Windows (lit at night).
-      const wl = mine ? homeGeo : winGeo;
+      const wl = winGeo;
       for (const y of [1.3, 4.6]) {
         for (const dz of [-3.6, 3.6]) {
           if (y < 2 && Math.abs(dz) < 1) continue;
@@ -97,20 +147,38 @@ export function buildEstate(world: CollisionWorld): LocationBuild {
       // Generator house + parked car pad.
       k.box(hx + side * 6, 0, zc - 9.5, 3, 2, 2, 0x8a8f96, true);
       k.floor(front - side * 1, zc - 11, fx0 - side * 0.5, zc - 4.2, 0.055, 0xb3ab9c);
-      if (mine) {
-        sign(g, 'HOME', front - side * 0.08, 2.9, zc, side === -1 ? Math.PI / 2 : -Math.PI / 2, 1.6, 0.5, { bg: '#0f6b3a' });
-        // Prepaid meter on the wall beside the door.
-        k.box(front - side * 0.12, 1.2, zc - 3.5, 0.12, 0.6, 0.4, 0xdddddd);
-        sign(g, 'AEDC PREPAID', front - side * 0.2, 1.95, zc - 3.5, side === -1 ? Math.PI / 2 : -Math.PI / 2, 0.8, 0.25, { bg: '#123e7c' });
-      }
+      const face = side === -1 ? Math.PI / 2 : -Math.PI / 2;
+      // Only on your house: HOME sign and the prepaid meter beside the door.
+      sign(mineG, 'HOME', front - side * 0.08, 2.9, zc, face, 1.6, 0.5, { bg: '#0f6b3a' });
+      const meterBox = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.6, 0.4), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
+      meterBox.position.set(front - side * 0.12, 1.5, zc - 3.5);
+      mineG.add(meterBox);
+      sign(mineG, 'AEDC PREPAID', front - side * 0.2, 1.95, zc - 3.5, face, 0.8, 0.25, { bg: '#123e7c' });
+      mineG.visible = false;
+      g.add(mineG);
+      ESTATE_VIEW.mineParts.push(mineG);
+      const win = new THREE.Mesh(mergeAll(winGeo), windows);
+      g.add(win);
+      ESTATE_VIEW.windows.push(win);
+      // Name plate on the compound gate post, facing the road.
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 112;
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const plate = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.57), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, toneMapped: false }));
+      plate.position.set(fx0 - side * 0.3, 2.35, zc + 5.2);
+      plate.rotation.y = face;
+      k.box(fx0 - side * 0.2, 0, zc + 5.2, 0.12, 2.1, 0.12, 0x555a60);
+      g.add(plate);
+      ESTATE_VIEW.plates.push({ canvas, tex, text: '' });
       k.tree(hx - side * 10, zc + 9, 1.1, true);
       k.tree(hx + side * 10, zc - 1, 0.9);
     }
   }
-  for (const [list, mat] of [[winGeo, windows], [homeGeo, homeWin]] as const) {
-    const m = new THREE.Mesh(mergeAll(list), mat);
-    g.add(m);
-  }
+  ESTATE_VIEW.mine = -1;
+  ESTATE_VIEW.setMine(0);
+  ESTATE_VIEW.setNames([]);
   // Street lights along the estate road.
   const lamp = nightMat(0xfff1c4, 0xdddddd, 2);
   b.glowMats.push(lamp);

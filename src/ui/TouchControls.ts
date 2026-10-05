@@ -27,6 +27,9 @@ export class TouchControls {
   private hornBtn: HTMLButtonElement;
   private giveBtn: HTMLButtonElement;
   enabled = false;
+  /** A quick tap (not a drag) on the game view: used to tap other players. */
+  onTap: (x: number, y: number) => void = () => {};
+  private taps = new Map<number, { x: number; y: number; t: number }>();
 
   constructor(private input: Input) {
     this.base.append(this.knob);
@@ -127,6 +130,15 @@ export class TouchControls {
     const endLook = (e: PointerEvent) => this.lookIds.delete(e.pointerId);
     this.lookZone.addEventListener('pointerup', endLook);
     this.lookZone.addEventListener('pointercancel', endLook);
+    for (const zone of [this.lookZone, this.stickZone]) {
+      zone.addEventListener('pointerdown', (e) => this.taps.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() }));
+      zone.addEventListener('pointerup', (e) => {
+        const t = this.taps.get(e.pointerId);
+        this.taps.delete(e.pointerId);
+        if (t && performance.now() - t.t < 350 && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 12) this.onTap(e.clientX, e.clientY);
+      });
+      zone.addEventListener('pointercancel', (e) => this.taps.delete(e.pointerId));
+    }
   }
 
   setPhoneBadge(n: number): void {

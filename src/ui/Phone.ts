@@ -256,6 +256,12 @@ export class Phone {
     );
   }
 
+  /** OPay → To a player, with the username filled in. */
+  openSendTo(username: string): void {
+    this.sendTo = username;
+    this.go('toplayer');
+  }
+
   /** Message another player (or open a chat with them) by @username. */
   openChatWith(p: PlayerRef): void {
     this.chatWith = p;

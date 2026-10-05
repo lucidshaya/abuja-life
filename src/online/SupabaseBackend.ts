@@ -1,5 +1,6 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { ChatMsg, Conversation, Me, OnlineBackend, PlayerRef, Transfer } from './types';
+import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
+import { PLOTS_PER_BLOCK, plotFor } from '../player/Home';
+import type { ChatMsg, Conversation, EstateInfo, Me, OnlineBackend, PlayerRef, Transfer, WorldTransport } from './types';
 
 interface MsgRow { id: number; from_id: string; to_id: string; body: string; created_at: string }
 interface TransferRow { id: number; from_id: string; to_id: string; amount: number; note: string | null; created_at: string; from_username?: string }
@@ -151,6 +152,61 @@ export class SupabaseBackend implements OnlineBackend {
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') void ch.track({ at: Date.now() });
       });
+  }
+
+  /** Houses go by sign-up order: your position among all players picks your block and plot. */
+  async estate(): Promise<EstateInfo | null> {
+    const id = await this.uid();
+    const { data: mine, error } = await this.sb.from('profiles').select('created_at').eq('id', id).maybeSingle();
+    if (error || !mine) return null;
+    const { count, error: e2 } = await this.sb.from('profiles').select('id', { count: 'exact', head: true }).lt('created_at', mine.created_at as string);
+    if (e2 || count === null) return null;
+    const { block, plot } = plotFor(count);
+    const { data: rows, error: e3 } = await this.sb
+      .from('profiles')
+      .select('id, username')
+      .order('created_at', { ascending: true })
+      .range(block * PLOTS_PER_BLOCK, block * PLOTS_PER_BLOCK + PLOTS_PER_BLOCK - 1);
+    if (e3) return null;
+    const neighbours = Array.from({ length: PLOTS_PER_BLOCK }, (_, i) => {
+      const r = rows?.[i];
+      return r ? { id: r.id as string, username: r.username as string } : null;
+    });
+    return { block, plot, neighbours };
+  }
+
+  private world: WorldTransport | null = null;
+
+  /** Realtime broadcast channels (no database writes): positions per map area plus a personal inbox. */
+  transport(): WorldTransport {
+    if (this.world) return this.world;
+    const chans = new Map<string, RealtimeChannel>();
+    this.world = {
+      join: (topic, onMsg, onReady) => {
+        if (chans.has(topic)) return;
+        const ch = this.sb.channel('w:' + topic, { config: { broadcast: { self: false, ack: false } } });
+        ch.on('broadcast', { event: '*' }, (m) => onMsg(m.event, (m.payload ?? {}) as Record<string, unknown>));
+        ch.subscribe((status) => {
+          if (status === 'SUBSCRIBED') onReady?.();
+        });
+        chans.set(topic, ch);
+      },
+      leave: (topic) => {
+        const ch = chans.get(topic);
+        if (!ch) return;
+        chans.delete(topic);
+        void this.sb.removeChannel(ch);
+      },
+      send: (topic, event, payload) => {
+        const ch = chans.get(topic);
+        if (ch?.state === 'joined') void ch.send({ type: 'broadcast', event, payload });
+      },
+      post: (topic, event, payload) => {
+        const ch = this.sb.channel('w:' + topic);
+        void ch.httpSend(event, payload).catch(() => {}).finally(() => void this.sb.removeChannel(ch));
+      },
+    };
+    return this.world;
   }
 }
 

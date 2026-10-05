@@ -35,6 +35,27 @@ export interface Conversation {
   last: ChatMsg;
 }
 
+/** Who lives in your copy of the estate. */
+export interface EstateInfo {
+  block: number;
+  plot: number;
+  /** Owner of each house in your block (index = plot), null = empty. */
+  neighbours: (PlayerRef | null)[];
+}
+
+/**
+ * Live messaging between players in the world (positions, waves, knocks).
+ * Topics: "cell:x:z" for an area of the map, "p:<id>" for one player's inbox.
+ */
+export interface WorldTransport {
+  join(topic: string, onMsg: (event: string, payload: Record<string, unknown>) => void, onReady?: () => void): void;
+  leave(topic: string): void;
+  /** Send to a topic you joined. */
+  send(topic: string, event: string, payload: Record<string, unknown>): void;
+  /** Send to a topic without joining it (another player's inbox). */
+  post(topic: string, event: string, payload: Record<string, unknown>): void;
+}
+
 export interface OnlineBackend {
   /** 'supabase' = real accounts; 'local' = this device only; 'mock' = test backend shared between tabs. */
   readonly kind: 'supabase' | 'local' | 'mock';
@@ -61,6 +82,10 @@ export interface OnlineBackend {
   listen(handlers: { message: (m: ChatMsg) => void; transfer: () => void }): void;
   /** Join the "who's online" room; calls back with the number of real players online. */
   presence(onCount: (n: number) => void): void;
+  /** Your house and neighbours (null = offline: you get the first house). */
+  estate(): Promise<EstateInfo | null>;
+  /** Live world link for seeing other players (null = offline). */
+  transport(): WorldTransport | null;
 }
 
 export const USERNAME_RE = /^[a-z0-9_]{3,16}$/;

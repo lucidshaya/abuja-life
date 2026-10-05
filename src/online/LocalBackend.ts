@@ -1,4 +1,5 @@
-import type { ChatMsg, Conversation, Me, OnlineBackend, PlayerRef, Transfer } from './types';
+import { PLOTS_PER_BLOCK } from '../player/Home';
+import type { ChatMsg, Conversation, EstateInfo, Me, OnlineBackend, PlayerRef, Transfer, WorldTransport } from './types';
 
 const PROFILE_KEY = 'abuja-life-profile-v1';
 
@@ -100,6 +101,12 @@ export class LocalBackend implements OnlineBackend {
   listen(): void {}
   presence(onCount: (n: number) => void): void {
     onCount(1);
+  }
+  async estate(): Promise<EstateInfo | null> {
+    return null;
+  }
+  transport(): WorldTransport | null {
+    return null;
   }
 }
 
@@ -250,5 +257,37 @@ export class MockBackend implements OnlineBackend {
       beat();
       tick();
     }, 2000);
+  }
+  async estate(): Promise<EstateInfo | null> {
+    const me = this.meId();
+    const ids = Object.keys(this.db().users).filter((k) => this.db().users[k].username);
+    const rank = me ? ids.indexOf(me) : -1;
+    if (rank < 0) return null;
+    const block = Math.floor(rank / PLOTS_PER_BLOCK);
+    const db = this.db();
+    const neighbours = Array.from({ length: PLOTS_PER_BLOCK }, (_, i) => {
+      const id = ids[block * PLOTS_PER_BLOCK + i];
+      return id ? { id, username: db.users[id].username! } : null;
+    });
+    return { block, plot: rank % PLOTS_PER_BLOCK, neighbours };
+  }
+  transport(): WorldTransport | null {
+    const chan = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('abuja-mock-world') : null;
+    if (!chan) return null;
+    const subs = new Map<string, (event: string, payload: Record<string, unknown>) => void>();
+    chan.addEventListener('message', (e: MessageEvent) => {
+      const d = e.data as { topic: string; event: string; payload: Record<string, unknown> };
+      subs.get(d.topic)?.(d.event, d.payload);
+    });
+    const post = (topic: string, event: string, payload: Record<string, unknown>) => chan.postMessage({ topic, event, payload });
+    return {
+      join: (topic, onMsg, onReady) => {
+        subs.set(topic, onMsg);
+        if (onReady) window.setTimeout(onReady, 0);
+      },
+      leave: (topic) => void subs.delete(topic),
+      send: post,
+      post,
+    };
   }
 }

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -i '' \"s|check\\('online: taken username is refused', \\(\\(await b.textContent\\('.au-err'\\)\\) ?? ''\\).includes\\('taken'\\)\\);|check\\('online: taken username is refused', \\(\\(await b.textContent\\('.au-err'\\)\\) ?? ''\\).includes\\('taken'\\), JSON.stringify\\(await b.evaluate\\(\\(\\) => \\({ err: document.querySelector\\('.au-err'\\)?.textContent, auth: document.getElementById\\('auth'\\).innerText.slice\\(0, 200\\), state: window.__abuja.state }\\)\\)\\)\\);|\" scripts/.e2e-two.mjs)",
+      "Bash(CHROME='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' OUT=/private/tmp/claude-501/-Users-mac-Downloads-abuja-life-main/35a8d0ed-481c-4f4f-9833-737b7694527a/scratchpad/shots node scripts/.e2e-two.mjs)",
+      "Bash(rm -f scripts/.e2e-two.mjs .dbg.mjs)",
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
